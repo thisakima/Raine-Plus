@@ -2159,6 +2159,73 @@ public final class TelegramTools {
                         ? "Profile photos removed." : "Couldn't remove profile photos.");
     }
 
+    public Tool setMyMusic() {
+        return Tool.named("set_my_music")
+                .describedAs("Set your Telegram profile music from an audio file in your gallery (e.g. a downloaded song). "
+                        + "You can download a track with #browser_download, then set it here. "
+                        + "Title and performer are optional but recommended — they show on your profile.")
+                .requiredString("filename", "Audio file name from your gallery (e.g. downloads/song.mp3)")
+                .optionalString("title", "Track title (shown on profile)")
+                .optionalString("performer", "Artist/performer name")
+                .optionalInteger("duration", "Duration in seconds (auto-detected if omitted)")
+                .build(args -> {
+                    String name = args.path("filename").asText("").strip();
+                    if (name.isEmpty()) return "Which file? Pass the filename from your gallery.";
+                    if (!isPlainFilename(name)) return "That filename doesn't look right.";
+                    java.nio.file.Path file = resolveMedia(name);
+                    if (file == null) return "There's no file named \"" + name + "\" in your gallery.";
+                    String title = args.path("title").asText("").strip();
+                    String performer = args.path("performer").asText("").strip();
+                    int duration = args.path("duration").asInt(0);
+                    if (duration <= 0) {
+                        duration = probeAudioDuration(file);
+                    }
+                    if (telegram.setProfileMusic(file, title, performer, duration)) {
+                        return "Profile music set to \"" + (title.isEmpty() ? name : title)
+                                + (performer.isEmpty() ? "" : " — " + performer) + "\".";
+                    }
+                    return "Couldn't set profile music — Telegram might be unreachable.";
+                });
+    }
+
+    public Tool clearMyMusic() {
+        return Tool.named("clear_my_music")
+                .describedAs("Remove your current profile music. You'll have no music on your profile until you set a new one.")
+                .build(args -> {
+                    List<Telegram.ProfileAudio> music = telegram.getProfileMusic();
+                    if (music.isEmpty()) {
+                        return "No profile music to remove.";
+                    }
+                    boolean ok = true;
+                    for (Telegram.ProfileAudio track : music) {
+                        if (!telegram.removeProfileMusic((int) track.fileId())) {
+                            ok = false;
+                        }
+                    }
+                    return ok ? "Profile music removed." : "Couldn't remove all profile music.";
+                });
+    }
+
+    public Tool myMusic() {
+        return Tool.named("my_music")
+                .describedAs("Show your current profile music tracks.")
+                .build(args -> {
+                    List<Telegram.ProfileAudio> music = telegram.getProfileMusic();
+                    if (music.isEmpty()) {
+                        return "No profile music set.";
+                    }
+                    StringBuilder out = new StringBuilder("Your profile music:\n");
+                    for (Telegram.ProfileAudio track : music) {
+                        out.append("  • ")
+                                .append(track.title().isEmpty() ? "Unknown" : track.title())
+                                .append(track.performer().isEmpty() ? "" : " — " + track.performer())
+                                .append(" [id=").append(track.fileId()).append("]")
+                                .append(" (").append(track.duration()).append("s)\n");
+                    }
+                    return out.toString();
+                });
+    }
+
     // ──────────────────────── GIF-ки: сохранять и отправлять ────────────────────────
 
     /**
@@ -2239,5 +2306,31 @@ public final class TelegramTools {
                         return "Couldn't send the GIF: " + e.getMessage();
                     }
                 });
+    }
+
+    /**
+     * Пытается определить длительность аудиофайла (в секундах) через ffprobe
+     * или метаданные. Возвращает 0 если не удалось.
+     */
+    private int probeAudioDuration(java.nio.file.Path file) {
+        try {
+            java.lang.ProcessBuilder pb = new java.lang.ProcessBuilder(
+                    "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1", file.toAbsolutePath().toString());
+            pb.redirectErrorStream(true);
+            java.lang.Process proc = pb.start();
+            try (java.io.BufferedReader r = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(proc.getInputStream()))) {
+                String line = r.readLine();
+                if (line != null && !line.isBlank()) {
+                    double sec = Double.parseDouble(line.trim());
+                    return (int) Math.round(sec);
+                }
+            }
+            proc.waitFor();
+        } catch (Exception ignored) {
+            // ffprobe not available or failed
+        }
+        return 0;
     }
 }

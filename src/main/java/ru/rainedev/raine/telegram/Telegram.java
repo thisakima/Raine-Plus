@@ -1345,6 +1345,62 @@ public final class Telegram {
         }
     }
 
+    /**
+     * Ставит музыку профиля из локального аудиофайла.
+     * Загружает через TDLib (InputFileLocal), а не через HTTP.
+     */
+    public boolean setProfileMusic(Path audioPath, String title, String performer, int duration) {
+        if (!Files.exists(audioPath)) {
+            log.debug("Аудиофайл не найден: {}", audioPath);
+            return false;
+        }
+        try {
+            TdApi.InputFileLocal file = new TdApi.InputFileLocal(audioPath.toAbsolutePath().toString());
+            perform(new TdApi.AddProfileAudio(file, duration, title, performer));
+            log.info("Обновила музыку профиля: {}", audioPath.getFileName());
+            return true;
+        } catch (TelegramDelivery.Unavailable e) {
+            log.info("Не удалось обновить музыку профиля: Telegram недоступен");
+            return false;
+        } catch (RuntimeException e) {
+            log.debug("Не удалось обновить музыку профиля: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** Удаляет музыку профиля по file_id. */
+    public boolean removeProfileMusic(int fileId) {
+        try {
+            perform(new TdApi.RemoveProfileAudio(fileId));
+            log.info("Удалила музыку профиля: {}", fileId);
+            return true;
+        } catch (TelegramDelivery.Unavailable e) {
+            return false;
+        } catch (RuntimeException e) {
+            log.debug("Не удалось удалить музыку профиля: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** Список музыки профиля (file_id, title, performer). */
+    public List<ProfileAudio> getProfileMusic() {
+        try {
+            TdApi.Audios audios = ask(new TdApi.GetUserProfileAudios(myId(), 0, 20));
+            List<ProfileAudio> result = new ArrayList<>();
+            if (audios.audios != null) {
+                for (TdApi.Audio audio : audios.audios) {
+                    result.add(new ProfileAudio(audio.audio.id, audio.title, audio.performer, audio.duration));
+                }
+            }
+            return result;
+        } catch (RuntimeException e) {
+            log.debug("Не удалось получить музыку профиля: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    public record ProfileAudio(long fileId, String title, String performer, int duration) {}
+
     /** Удаляет все фото профиля. */
     public boolean deleteAllProfilePhotos() {
         try {
