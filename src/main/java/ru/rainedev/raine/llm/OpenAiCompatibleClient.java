@@ -53,16 +53,16 @@ public final class OpenAiCompatibleClient implements LlmClient {
     /** Предел модели эмбеддингов — 8192 токена; на кириллице это заметно меньше букв. */
     private static final int MAX_EMBEDDING_CHARS = 8_000;
 
-    private final String embeddingModel;
+    private final Config.Embedding embedding;
 
-    public OpenAiCompatibleClient(Config.Llm config, String embeddingModel) {
-        this(config, embeddingModel, defaultSender(), OpenAiCompatibleClient::sleep);
+    public OpenAiCompatibleClient(Config.Llm config, Config.Embedding embedding) {
+        this(config, embedding, defaultSender(), OpenAiCompatibleClient::sleep);
     }
 
-    OpenAiCompatibleClient(Config.Llm config, String embeddingModel, Sender sender,
+    OpenAiCompatibleClient(Config.Llm config, Config.Embedding embedding, Sender sender,
                            java.util.function.Consumer<Duration> pause) {
         this.config = config;
-        this.embeddingModel = embeddingModel;
+        this.embedding = embedding;
         this.sender = sender;
         this.pause = pause;
     }
@@ -70,6 +70,11 @@ public final class OpenAiCompatibleClient implements LlmClient {
     private static Sender defaultSender() {
         HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build();
         return request -> http.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Override
+    public String modelName() {
+        return config.model();
     }
 
     @Override
@@ -89,7 +94,8 @@ public final class OpenAiCompatibleClient implements LlmClient {
             body.put("tool_choice", "auto");
         }
 
-        String response = post("chat/completions", body, Duration.ofMinutes(5));
+        String response = post(config.baseUrl(), config.apiKey(), "chat/completions", body,
+                Duration.ofMinutes(5));
         Transcript.save(body, response);
         try {
             ChatResponse parsed = mapper.readValue(response, ChatResponse.class);
@@ -122,10 +128,11 @@ public final class OpenAiCompatibleClient implements LlmClient {
         parts.addObject()
                 .put("type", "image_url")
                 .putObject("image_url")
-                .put("url", "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(image));
+                .put("url", "data:" + mimeOf(image) + ";base64," + java.util.Base64.getEncoder().encodeToString(image));
         parts.addObject().put("type", "text").put("text", "</attachments>");
 
-        String response = post("chat/completions", body, Duration.ofMinutes(3));
+        String response = post(config.baseUrl(), config.apiKey(), "chat/completions", body,
+                Duration.ofMinutes(3));
         try {
             return mapper.readValue(response, ChatResponse.class).text();
         } catch (IOException e) {
@@ -136,11 +143,12 @@ public final class OpenAiCompatibleClient implements LlmClient {
     @Override
     public double[] embedding(String input) {
         ObjectNode body = mapper.createObjectNode();
-        body.put("model", embeddingModel);
+        body.put("model", embedding.model());
         // пустую строку эндпоинт не принимает, а пустой текст встречается
         body.put("input", input == null || input.isBlank() ? " " : trimmed(input));
 
-        String response = post("embeddings", body, Duration.ofMinutes(2));
+        String response = post(embedding.baseUrl(), embedding.apiKey(), "embeddings", body,
+                Duration.ofMinutes(2));
         try {
             JsonNode vector = mapper.readTree(response).path("data").path(0).path("embedding");
             if (!vector.isArray()) {
@@ -171,18 +179,22 @@ public final class OpenAiCompatibleClient implements LlmClient {
         return input.substring(0, MAX_EMBEDDING_CHARS);
     }
 
-    private String post(String path, ObjectNode body, Duration timeout) {
+    private String post(String baseUrl, String apiKey, String path, ObjectNode body, Duration timeout) {
         LlmFailure unavailable = blocked;
         if (unavailable != null) throw unavailable;
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder(URI.create(baseUrl() + path))
+            var builder = HttpRequest.newBuilder(URI.create(withSlash(baseUrl) + path))
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + config.apiKey())
-                    .header("x-session-id", sessionId)
+                    // у локального эмбеддера ключа может не быть: на пустой Bearer
+                    // некоторые прокси отвечают отказом
                     .timeout(timeout)
-                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
+            if (apiKey != null && !apiKey.isBlank()) {
+                builder.header("Authorization", "Bearer " + apiKey);
+            }
+            builder.header("x-session-id", sessionId);
+            request = builder.build();
         } catch (IOException e) {
             throw new UncheckedIOException("Не удалось собрать запрос", e);
         }
@@ -234,8 +246,7 @@ public final class OpenAiCompatibleClient implements LlmClient {
         return Duration.ofSeconds(Math.clamp(seconds, 1, 3600));
     }
 
-    private String baseUrl() {
-        String url = config.baseUrl();
+    private static String withSlash(String url) {
         return url.endsWith("/") ? url : url + "/";
     }
 
@@ -246,5 +257,22 @@ public final class OpenAiCompatibleClient implements LlmClient {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Ожидание прервано", e);
         }
+    }
+
+    private static String mimeOf(byte[] b) {
+        if (b.length >= 12 && b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46
+                && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) {
+            return "image/webp";
+        }
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+            return "image/png";
+        }
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) {
+            return "image/jpeg";
+        }
+        if (b.length >= 3 && b[0] == 0x47 && b[1] == 0x49 && b[2] == 0x46) {
+            return "image/gif";
+        }
+        return "image/jpeg";
     }
 }

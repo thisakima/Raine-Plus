@@ -50,8 +50,13 @@ public final class TelegramMedia implements MediaDescriber {
                     watch(fileOf(videoNote.videoNote.video)) + heard(message, "video_note");
             case TdApi.MessageVideo video -> video.video == null ? "" : watchOrGlance(
                     message, fileOf(video.video.video), thumbnailOf(video.video.thumbnail));
-            case TdApi.MessageAnimation animation -> animation.animation == null ? "" : watchOrGlance(
-                    message, fileOf(animation.animation.animation), thumbnailOf(animation.animation.thumbnail));
+            case TdApi.MessageAnimation animation -> {
+                if (animation.animation != null) {
+                    telegram.rememberAnimation(animation.animation);
+                }
+                yield animation.animation == null ? "" : watchOrGlance(
+                        message, fileOf(animation.animation.animation), thumbnailOf(animation.animation.thumbnail));
+            }
             // роликом, присланным файлом, каналы пользуются чаще всего: по типу
             // сообщения это документ, и без разбора имени он уходил бы в разбор
             // картинки, где из видео не видно ничего

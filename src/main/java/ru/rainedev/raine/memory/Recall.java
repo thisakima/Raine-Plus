@@ -147,12 +147,18 @@ public final class Recall {
     private Tool searchTool(Set<String> alreadyGiven) {
         Tool.Builder builder = Tool.named("query")
                 .describedAs("Perform embedding-based search on the diary"
-                        + (web.isAvailable() ? ", optionally adding results from the web" : ""))
+                        + (web.isAvailable()
+                                ? ", with a fallback web lookup for when your browser isn't an option"
+                                : ""))
                 .requiredString("text", "Retrieval cue that is likely to appear in memory pieces. Include as many "
                         + "keywords as possible; maintain meaning of the request.");
         if (web.isAvailable()) {
-            builder.optionalBoolean("include_web_search_results", "Set to true when looking for public or "
-                    + "recent information the diary cannot contain: weather, news, facts.");
+            builder.optionalBoolean("include_web_search_results",
+                    "FALLBACK ONLY: ask the built-in search API for public or recent information the diary "
+                            + "cannot contain (weather, news, facts) when you can't or don't want to open your "
+                            + "browser. When you can, go and look yourself: #open_browser, then "
+                            + "#browser_web_search — there you read the actual pages and click through, "
+                            + "instead of getting five snippets handed to you.");
         }
         return builder.build(arguments -> {
             String cue = arguments.path("text").asText("").strip();

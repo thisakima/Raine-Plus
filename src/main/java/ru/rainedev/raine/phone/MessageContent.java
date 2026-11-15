@@ -22,7 +22,12 @@ public final class MessageContent {
                     : text.text.text + "\n" + linkPreview(text.linkPreview);
             case TdApi.MessagePhoto photo -> withCaption("[фото]", photo.caption);
             case TdApi.MessageVideo video -> withCaption("[видео]", video.caption);
-            case TdApi.MessageAnimation animation -> withCaption("[гифка]", animation.caption);
+            case TdApi.MessageAnimation animation -> animation.animation == null
+                    ? "[гифка]"
+                    : "[гифка animation_id=%d] %s".formatted(
+                            animation.animation.animation.id,
+                            animation.caption == null || animation.caption.text == null
+                                    ? "" : animation.caption.text.strip());
             case TdApi.MessageVoiceNote voice -> withCaption("[голосовое]", voice.caption);
             case TdApi.MessageVideoNote ignored -> "[кружок]";
             // id обязателен: без него стикер не забрать себе и не отправить потом,
@@ -170,10 +175,27 @@ public final class MessageContent {
 
     private static String poll(TdApi.MessagePoll message) {
         StringBuilder out = new StringBuilder("[опрос] ").append(message.poll.question.text);
+        if (message.description != null && message.description.text != null
+                && !message.description.text.isBlank()) {
+            out.append(" — ").append(message.description.text.strip());
+        }
+        out.append(" (всего голосов: ").append(message.poll.totalVoterCount).append(')');
         if (message.poll.options != null) {
-            for (TdApi.PollOption option : message.poll.options) {
-                out.append("\n- ").append(option.text.text);
+            for (int i = 0; i < message.poll.options.length; i++) {
+                TdApi.PollOption option = message.poll.options[i];
+                out.append("\n  вариант ").append(i).append(": \"")
+                        .append(option.text.text).append('"');
+                if (option.voterCount > 0) {
+                    out.append(" — ").append(option.voterCount)
+                            .append(" (").append(option.votePercentage).append("%)");
+                }
+                if (option.isChosen) {
+                    out.append(" [ТВОЙ ГОЛОС]");
+                }
             }
+        }
+        if (!message.poll.isClosed) {
+            out.append("\n  опрос открыт — можно проголосовать через #vote_poll");
         }
         return out.toString();
     }

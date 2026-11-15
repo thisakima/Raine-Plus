@@ -48,6 +48,7 @@ public final class NightSleep {
         LocalDateTime now = LocalDateTime.now(clock);
         plan(now);
 
+        // мы внутри окна сна только если now >= bedtime и now < wakeTime
         if (now.isBefore(bedtime) || !now.isBefore(wakeTime)) {
             return Optional.empty();
         }
@@ -65,20 +66,58 @@ public final class NightSleep {
     }
 
     /**
-     * Ночь считается по дате отхода ко сну. Если сейчас час ночи, значит идёт
-     * ночь предыдущих суток — иначе в полночь расписание менялось бы посреди сна.
+     * Вычисляет ближайшую пару (bedtime, wakeTime).
+     * <p>
+     * Окно отхода ко сну может пересекать полночь (23:00–01:00), а может
+     * целиком лежать после полуночи (00:00–02:00). Подъём всегда на
+     * следующий день после отхода. Если сейчас момент после того, как
+     * она уже должна была встать по ближайшему расписанию, значит эта
+     * ночь прошла и нужно планировать следующую — иначе untilMorning
+     * вернёт сотни минут «сна» посреди дня.
      */
     private void plan(LocalDateTime now) {
-        LocalDate night = now.toLocalTime().isBefore(wakeTo) ? now.toLocalDate().minusDays(1) : now.toLocalDate();
-        if (night.equals(plannedFor)) {
+        LocalDate today = now.toLocalDate();
+        if (today.equals(plannedFor)) {
             return;
         }
-        plannedFor = night;
-        bedtime = LocalDateTime.of(night, pick(bedtimeFrom, bedtimeTo));
-        if (bedtimeTo.isBefore(bedtimeFrom) && bedtime.toLocalTime().isBefore(bedtimeFrom)) {
-            bedtime = bedtime.plusDays(1);   // легла уже после полуночи
+        plannedFor = today;
+
+        // если сейчас до утреннего окна (например, 3 часа ночи), то идёт
+        // ночь, начавшаяся вчера вечером — она ещё не закончилась.
+        // иначе в час ночи расписание перевыбиралось бы посреди сна.
+        boolean earlyMorning = now.toLocalTime().isBefore(wakeTo);
+
+        LocalDateTime candidateBed = bedFor(earlyMorning ? today.minusDays(1) : today);
+        LocalDateTime candidateWake = wakeAfter(candidateBed);
+
+        // если эта ночь уже полностью прошла (now >= wake), берём следующую
+        if (!now.isBefore(candidateWake)) {
+            candidateBed = bedFor(candidateBed.toLocalDate().plusDays(1));
+            candidateWake = wakeAfter(candidateBed);
         }
-        wakeTime = LocalDateTime.of(night.plusDays(1), pick(wakeFrom, wakeTo));
+
+        bedtime = candidateBed;
+        wakeTime = candidateWake;
+    }
+
+    /** Время отхода ко сну для ночи, приходящейся на указанную дату. */
+    private LocalDateTime bedFor(LocalDate night) {
+        LocalDateTime bed = LocalDateTime.of(night, pick(bedtimeFrom, bedtimeTo));
+        // окно отхода может пересекать полночь: если pick попал за полночь,
+        // а начало окна было накануне, сдвигаем на следующий день
+        if (bedtimeTo.isBefore(bedtimeFrom) && bed.toLocalTime().isBefore(bedtimeFrom)) {
+            bed = bed.plusDays(1);
+        }
+        return bed;
+    }
+
+    /** Время подъёма всегда идёт после отхода ко сну. */
+    private LocalDateTime wakeAfter(LocalDateTime bed) {
+        LocalDateTime wake = LocalDateTime.of(bed.toLocalDate(), pick(wakeFrom, wakeTo));
+        if (!wake.isAfter(bed)) {
+            wake = wake.plusDays(1);
+        }
+        return wake;
     }
 
     private LocalTime pick(LocalTime from, LocalTime to) {

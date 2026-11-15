@@ -20,6 +20,7 @@ class PhotoNotificationTest {
 
     /** Сразу заканчивает ход: интересен только текст, с которого ход начался. */
     private static final class SilentLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         @Override
         public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
             Message answer = new Message(Message.Role.ASSISTANT, null,

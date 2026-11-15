@@ -25,6 +25,7 @@ class LostNotificationTest {
 
     /** Первые несколько раз изображает обрыв сети, потом отвечает как обычно. */
     private static final class FlakyNetwork implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final int failures;
         private int calls;
         private List<Message> lastContext = List.of();

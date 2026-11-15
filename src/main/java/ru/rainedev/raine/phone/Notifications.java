@@ -30,6 +30,24 @@ public final class Notifications {
         return wrap(chat.id, "Channel \"%s\" (chat_id=%d) created a new post".formatted(chat.title, chat.id));
     }
 
+    /**
+     * «Тебе кинули ролик в TikTok». В отличие от обычного уведомления, ссылка и
+     * инструкция уже здесь: она открывает ролик и реагирует в самом TikTok, а не
+     * в чате, поэтому строки про «открой чат» намеренно нет.
+     */
+    public static String tiktokReaction(TdApi.Chat chat, String senderName, String url, String messageText) {
+        StringBuilder body = new StringBuilder();
+        body.append("%s sent you a TikTok video in your DMs: %s".formatted(senderName, url));
+        if (messageText != null && !messageText.isBlank()) {
+            body.append("\nTheir message: ").append(messageText.strip());
+        }
+        body.append("\nOpen it with #tiktok_open_video, then really watch it with #tiktok_watch. ")
+                .append("If you genuinely like it, react right there in TikTok — like, comment or repost, ")
+                .append("in your own voice; if it's not your thing, just watch and move on. ")
+                .append("For these you don't answer in the chat — once you've reacted, end the turn with #wait.");
+        return openingTag(chat.id) + body + "\n</notification>\n";
+    }
+
     private static String wrap(long chatId, String body) {
         return openingTag(chatId) + body + "\n</notification>\n"
                 + "You don't have any chat open. Use #open tool to open the chat";

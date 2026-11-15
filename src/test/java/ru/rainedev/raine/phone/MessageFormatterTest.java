@@ -22,6 +22,17 @@ class MessageFormatterTest {
     private final MessageFormatter.ChatView view = new MessageFormatter.ChatView(MY_ID, 500L);
 
     @Test
+    void queuedAndFailedMessagesAreNotRenderedAsSuccessfulSends() {
+        TdApi.Message message = textMessage(900L, MY_ID, "hello");
+        message.sendingState = new TdApi.MessageSendingStatePending();
+        assertTrue(formatter.format(message, view).contains("sending_state=\"PENDING_NOT_CONFIRMED\""));
+        message.sendingState = new TdApi.MessageSendingStateFailed();
+        assertTrue(formatter.format(message, view).contains("sending_state=\"FAILED_NOT_SENT\""));
+        message.sendingState = null;
+        assertFalse(formatter.format(message, view).contains("sending_state="));
+    }
+
+    @Test
     void formatsPlainTextMessage() {
         String result = formatter.format(textMessage(600L, JOHN, "привет"), view);
 

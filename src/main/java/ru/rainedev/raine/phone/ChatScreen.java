@@ -71,6 +71,13 @@ public final class ChatScreen {
             text.append(rendered);
         }
 
+        // вайб чата: модель видит, как здесь принято общаться, и подстраивается
+        // под энергию. Анализ только чужих сообщений — свои не учитываются
+        String vibe = ChatVibe.describe(messages, view.myId());
+        if (!vibe.isEmpty()) {
+            text.append('\n').append(vibe).append('\n');
+        }
+
         text.append(instructions(chat, kind));
         return new Screen(text.toString(), kind);
     }
@@ -102,6 +109,14 @@ public final class ChatScreen {
                     reading newsletters: reflect and reason on them.
                     Some channels have reactions enabled. In that case, you can sometimes react with \
                     #react_with_emoji to express your feelings about a message, but you can't send a full reply.
+
+                    Commenting on posts:
+                    Many channels have a comment section under their posts. When a post genuinely gets a reaction \
+                    out of you - it's funny, relatable, dumb, or you have something short to add - you can comment \
+                    on it with #comment_on_post (pass the post's message_id). Your comment lands in the post's \
+                    comments, just like a real subscriber. Be selective and natural: one short line in your own \
+                    voice, not a comment on every post. If a post has no comment section, the tool will tell you - \
+                    then just react instead.
 
                     Forwarding posts:
                     If you find a post genuinely interesting, funny, or relevant to someone you know — you can forward \

@@ -15,6 +15,7 @@ import ru.rainedev.raine.llm.Message;
 class IdleRestTest {
 
     private static final LlmClient SILENT = new LlmClient() {
+            @Override public String modelName() { return "test-model"; }
         @Override
         public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
             throw new UnsupportedOperationException();

@@ -20,6 +20,10 @@ dependencies {
 
     implementation("ch.qos.logback:logback-classic:1.5.38")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.22.1")
+    // Тело для браузера: живой Firefox под управлением Playwright. Тяжёлая,
+    // но необязательная зависимость — используется только когда browser.enabled.
+    // Браузер догружается один раз отдельно: ./gradlew playwrightInstall.
+    implementation("com.microsoft.playwright:playwright:1.52.0")
     // чистый Java-порт libopus: голосовые кодируются без внешних программ
     implementation("io.github.jaredmdobson:concentus:1.0.2")
     // Чистый Java-декодер AAC: звук из видео слышен без внешних программ.
@@ -83,4 +87,15 @@ tasks.named<JavaExec>("run") {
 
 tasks.named<CreateStartScripts>("startScripts") {
     defaultJvmOpts = listOf("--enable-native-access=ALL-UNNAMED")
+}
+
+// Браузер для неё ставится один раз отдельно: Playwright тянет свой бинарник,
+// а не берёт системный. Движок — тот же, что в browser_engine; по умолчанию
+// firefox. Другой: ./gradlew playwrightInstall -Pengine=chromium
+tasks.register<JavaExec>("playwrightInstall") {
+    description = "Скачать браузер для Playwright (firefox, либо -Pengine=chromium|webkit)."
+    group = "application"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "com.microsoft.playwright.CLI"
+    args("install", providers.gradleProperty("engine").getOrElse("firefox"))
 }

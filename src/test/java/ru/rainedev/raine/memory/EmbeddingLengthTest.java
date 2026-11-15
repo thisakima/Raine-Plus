@@ -21,6 +21,7 @@ class EmbeddingLengthTest {
 
     /** Запоминает, что именно попросили посчитать. */
     private static final class RecordingLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private String asked;
 
         @Override

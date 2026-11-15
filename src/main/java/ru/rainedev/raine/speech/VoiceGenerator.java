@@ -7,7 +7,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -42,14 +42,14 @@ public final class VoiceGenerator {
     public record Voice(Path file, int seconds) {}
 
     public Voice speak(String text) {
-        byte[] pcm = synthesize(text);
-        byte[] ogg = encode(pcm);
+        short[] samples = synthesize(text);
+        byte[] ogg = OggOpus.encode(samples, config.sampleRate(), config.bitrate());
 
         try {
             Files.createDirectories(directory);
             Path file = directory.resolve(System.currentTimeMillis() + ".ogg");
             Files.write(file, ogg);
-            int seconds = Math.max(1, pcm.length / 2 / config.sampleRate());
+            int seconds = Math.max(1, samples.length / config.sampleRate());
             log.info("Записано голосовое на {} с: {}", seconds, file.getFileName());
             return new Voice(file, seconds);
         } catch (IOException e) {
@@ -57,12 +57,24 @@ public final class VoiceGenerator {
         }
     }
 
-    private byte[] synthesize(String text) {
+    /**
+     * Моно-отсчёты на частоте синтеза. Формат ответа заранее неизвестен:
+     * эндпоинт умеет отдавать и отсчёты, и wav, и mp3, и opus — что пришло,
+     * то и разбирается.
+     */
+    private short[] synthesize(String text) {
+        if ("fish".equalsIgnoreCase(config.provider())) {
+            return fish(text);
+        }
+        return openAi(text);
+    }
+
+    private short[] openAi(String text) {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", config.model());
         body.put("voice", config.voice());
         body.put("input", text);
-        body.put("response_format", "pcm");
+        body.put("response_format", config.format());
         // язык называется явно: иначе синтез угадывает его по тексту и на
         // коротких репликах вроде «ага» может заговорить по-английски
         if (config.language() != null && !config.language().isBlank()) {
@@ -71,8 +83,8 @@ public final class VoiceGenerator {
         body.put("speed", config.speed());
 
         try {
-            String url = config.baseUrl().endsWith("/") ? config.baseUrl() : config.baseUrl() + "/";
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url + "audio/speech"))
+            String url = withSlash(config.baseUrl()) + "audio/speech";
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + config.apiKey())
                     .timeout(Duration.ofMinutes(2))
@@ -83,10 +95,11 @@ public final class VoiceGenerator {
             if (response.statusCode() / 100 != 2) {
                 throw new IllegalStateException("Синтез речи отказал (%d)".formatted(response.statusCode()));
             }
-            if (response.body().length < 2) {
+            byte[] sound = response.body();
+            if (sound.length < 2) {
                 throw new IllegalStateException("Синтез вернул пустой звук");
             }
-            return response.body();
+            return Sound.decode(sound, contentType(response), config.sampleRate());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Синтез прерван", e);
@@ -95,8 +108,43 @@ public final class VoiceGenerator {
         }
     }
 
-    /** Синтез отдаёт сырой звук, Telegram принимает только OGG/Opus. */
-    private byte[] encode(byte[] pcm) {
-        return OggOpus.encode(Pcm.fromBytes(pcm, ByteOrder.LITTLE_ENDIAN), config.sampleRate(), config.bitrate());
+    private short[] fish(String text) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("text", text);
+        body.put("reference_id", config.voice());
+        // Fish сырых отсчётов не отдаёт — только контейнеры
+        body.put("format", "pcm".equalsIgnoreCase(config.format()) ? "wav" : config.format());
+
+        try {
+            String url = withSlash(config.baseUrl()) + "tts";
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + config.apiKey())
+                    .header("model", config.model())
+                    .timeout(Duration.ofMinutes(2))
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                    .build();
+
+            HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException("Fish Audio отказал (%d): %s".formatted(response.statusCode(),
+                        new String(response.body(), StandardCharsets.UTF_8)));
+            }
+            return Sound.decode(response.body(), contentType(response), config.sampleRate());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Синтез прерван", e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Fish Audio недоступен: " + e.getMessage(), e);
+        }
+    }
+
+    /** Что эндпоинт назвал в заголовке ответа: по этому решается, как читать звук. */
+    private static String contentType(HttpResponse<byte[]> response) {
+        return response.headers().firstValue("content-type").orElse("");
+    }
+
+    private static String withSlash(String url) {
+        return url.endsWith("/") ? url : url + "/";
     }
 }

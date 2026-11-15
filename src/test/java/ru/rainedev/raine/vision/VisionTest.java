@@ -23,6 +23,7 @@ class VisionTest {
 
     /** Кадры видео смотрятся одновременно, поэтому заглушка тоже должна это переживать. */
     private static final class ScriptedLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final java.util.Queue<String> answers = new java.util.concurrent.ConcurrentLinkedQueue<>();
         volatile String lastModel = "";
         volatile String lastContext = "";
@@ -63,8 +64,14 @@ class VisionTest {
     private static Path imageFile(Path dir, String name) throws IOException {
         Path file = dir.resolve(name);
         // размером с настоящий файл: слишком мелкие мы не смотрим, потому что
-        // это признак недокачанного вложения
-        Files.write(file, new byte[2048]);
+        // это признак недокачанного вложения. Байты начинаются с JPEG-сигнатуры,
+        // иначе isImage их отклонит и тест потеряет смысл
+        byte[] content = new byte[2048];
+        content[0] = (byte) 0xFF;
+        content[1] = (byte) 0xD8;
+        content[2] = (byte) 0xFF;
+        content[3] = (byte) 0xE0;
+        Files.write(file, content);
         return file;
     }
 

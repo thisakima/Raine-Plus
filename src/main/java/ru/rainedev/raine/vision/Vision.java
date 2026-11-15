@@ -31,6 +31,50 @@ public final class Vision {
     private static final int MIN_IMAGE_BYTES = 512;
 
     /**
+     * Поддерживаемые форматы картинок. Всё остальное (tgs-стикеры, lottie,
+     * анимированные webp, документы) модель отклоняет с «invalid image data».
+     * Проверка стоит до обращения к модели — иначе ошибка уходит в лог и в
+     * разговор как будто описание просто пустое.
+     */
+    static boolean isImage(byte[] content) {
+        if (content == null || content.length < 4) {
+            return false;
+        }
+        // gzip (1F 8B): это tgs-стикер (анимированный Lottie), не картинка
+        if (content[0] == (byte) 0x1F && content[1] == (byte) 0x8B) {
+            return false;
+        }
+        // PNG: 89 50 4E 47
+        if (content[0] == (byte) 0x89 && content[1] == 'P'
+                && content[2] == 'N' && content[3] == 'G') {
+            return true;
+        }
+        // JPEG: FF D8 FF
+        if (content[0] == (byte) 0xFF && content[1] == (byte) 0xD8
+                && content[2] == (byte) 0xFF) {
+            return true;
+        }
+        // GIF: 47 49 46 38
+        if (content[0] == 'G' && content[1] == 'I'
+                && content[2] == 'F' && content[3] == '8') {
+            return true;
+        }
+        // WebP: RIFF....WEBP
+        if (content.length >= 12
+                && content[0] == 'R' && content[1] == 'I'
+                && content[2] == 'F' && content[3] == 'F'
+                && content[8] == 'W' && content[9] == 'E'
+                && content[10] == 'B' && content[11] == 'P') {
+            return true;
+        }
+        // BMP: 42 4D
+        if (content[0] == 'B' && content[1] == 'M') {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Отказ смотреть — не описание. Беда в том, что он непустой и потому шёл
      * дальше как обычный ответ: оседал в кэше навсегда (значит, картинку уже
      * никогда не переспросят), уходил в разговор как увиденное и попадал
@@ -96,6 +140,12 @@ public final class Vision {
      * нет файла, по которому их можно было бы узнать в следующий раз.
      */
     public String describe(byte[] image, Kind kind, List<Message> context) {
+        // не-картинка (tgs, недокачанный файл) отсекается здесь же, чтобы не
+        // тратить обращение к модели и не получать 400 «invalid image data»
+        if (image == null || image.length < MIN_IMAGE_BYTES || !isImage(image)) {
+            log.debug("Байты не похожи на картинку ({} байт), пропускаю", image == null ? 0 : image.length);
+            return "";
+        }
         try {
             String description = llm.describeImage(kind.cheap ? cheapModel : mainModel,
                     prompts.load(kind.prompt), buildContext(context), Downscale.toFit(image));
@@ -268,6 +318,14 @@ public final class Vision {
         // описание — лучше промолчать
         if (image.length < MIN_IMAGE_BYTES) {
             log.info("Файл {} пуст ({} байт) — смотреть нечего", file.getFileName(), image.length);
+            return "";
+        }
+        // tgs, lottie и прочая не-картинка: модель отклоняет с 400 и ошибкой
+        // «invalid image data». Лучше отсечь до запроса — и в лог написать
+        // понятно, а не как «не удалось разглядеть»
+        if (!isImage(image)) {
+            String name = file.getFileName().toString();
+            log.debug("Файл {} — не картинка (tgs/анимация/неизвестный формат), пропускаю", name);
             return "";
         }
 

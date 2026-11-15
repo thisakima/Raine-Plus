@@ -13,6 +13,9 @@ public interface LlmClient {
      */
     ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools);
 
+    /** Имя модели, которую использует клиент (для статистики). */
+    String modelName();
+
     /** Вектор для поиска по дневнику. */
     double[] embedding(String input);
 

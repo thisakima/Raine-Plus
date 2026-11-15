@@ -19,6 +19,7 @@ class DiaryWriterTest {
 
     /** Отдаёт заготовленные пересказы и постоянный вектор. */
     private static final class ScriptedLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final Deque<String> answers = new ArrayDeque<>();
         private double[] vector;
         int chatCalls;

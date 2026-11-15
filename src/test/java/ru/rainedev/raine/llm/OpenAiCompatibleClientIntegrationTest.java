@@ -19,7 +19,7 @@ import ru.rainedev.raine.config.Config;
 class OpenAiCompatibleClientIntegrationTest {
 
     private final Config config = Config.load();
-    private final LlmClient client = new OpenAiCompatibleClient(config.llm(), "openai/text-embedding-3-large");
+    private final LlmClient client = new OpenAiCompatibleClient(config.llm(), config.embedding());
 
     @Test
     void callsToolInsteadOfAnsweringWithText() throws Exception {

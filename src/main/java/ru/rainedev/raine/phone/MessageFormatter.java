@@ -2,7 +2,7 @@ package ru.rainedev.raine.phone;
 
 import it.tdlight.jni.TdApi;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
@@ -20,6 +20,18 @@ public final class MessageFormatter {
         String nameOf(long id);
     }
 
+    /**
+     * Подсказка пола по идентификатору. Пустая строка — неизвестно.
+     * «f» — женский, «m» — мужской. Нужна, чтобы модель не писала
+     * «он сказал» про девушку или «она написал» про парня.
+     */
+    @FunctionalInterface
+    public interface GenderResolver {
+        String genderOf(long id);
+
+        GenderResolver UNKNOWN = id -> "";
+    }
+
     /** Достаёт сообщение, на которое отвечают. Пусто, если удалено или недоступно. */
     @FunctionalInterface
     public interface ReplyLookup {
@@ -28,21 +40,34 @@ public final class MessageFormatter {
         ReplyLookup NONE = (chatId, messageId) -> Optional.empty();
     }
 
+    /**
+     * Время сообщений показывается в локальной зоне сервера, а не в UTC.
+     * Иначе модель видит «02:00» у сообщения, отправленного в 05:00 по Москве,
+     * и начинает путаться: «он написал в 5 утра» / «сейчас 2 ночи».
+     */
     private static final DateTimeFormatter DATE =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    .withZone(java.time.ZoneId.systemDefault());
 
     private final NameResolver names;
     private final ReplyLookup replies;
     private final MediaDescriber media;
+    private final GenderResolver genders;
 
     public MessageFormatter(NameResolver names, ReplyLookup replies) {
-        this(names, replies, MediaDescriber.NONE);
+        this(names, replies, MediaDescriber.NONE, GenderResolver.UNKNOWN);
     }
 
     public MessageFormatter(NameResolver names, ReplyLookup replies, MediaDescriber media) {
+        this(names, replies, media, GenderResolver.UNKNOWN);
+    }
+
+    public MessageFormatter(NameResolver names, ReplyLookup replies, MediaDescriber media,
+                            GenderResolver genders) {
         this.names = names;
         this.replies = replies;
         this.media = media;
+        this.genders = genders;
     }
 
     /**
@@ -89,6 +114,11 @@ public final class MessageFormatter {
                 .append(" message_id=\"").append(message.id).append('"')
                 .append(" date=\"").append(DATE.format(Instant.ofEpochSecond(message.date))).append('"');
 
+        if (message.sendingState instanceof TdApi.MessageSendingStatePending) {
+            attributes.append(" sending_state=\"PENDING_NOT_CONFIRMED\"");
+        } else if (message.sendingState instanceof TdApi.MessageSendingStateFailed) {
+            attributes.append(" sending_state=\"FAILED_NOT_SENT\"");
+        }
         long senderId = senderId(message.senderId);
         if (senderId != view.myId() && message.id > view.lastReadInboxMessageId()) {
             attributes.append(" unread");
@@ -134,13 +164,18 @@ public final class MessageFormatter {
         }
         StringBuilder reactions = new StringBuilder();
         for (TdApi.MessageReaction reaction : message.interactionInfo.reactions.reactions) {
-            if (!(reaction.type instanceof TdApi.ReactionTypeEmoji emoji)) {
-                continue;   // платные и кастомные ничего не говорят об отношении
-            }
             if (!reactions.isEmpty()) {
                 reactions.append(';');
             }
-            reactions.append('(').append(emoji.emoji);
+            if (reaction.type instanceof TdApi.ReactionTypeEmoji emoji) {
+                reactions.append('(').append(emoji.emoji);
+            } else if (reaction.type instanceof TdApi.ReactionTypeCustomEmoji custom) {
+                // премиум-реакция: показываем id, чтобы она могла скопировать
+                // и поставить себе такую же через react_with_emoji
+                reactions.append("(premium custom:").append(custom.customEmojiId);
+            } else {
+                continue;
+            }
             if (reaction.totalCount > 3 || reaction.recentSenderIds == null) {
                 reactions.append(' ').append(reaction.totalCount).append(')');
                 continue;
@@ -180,6 +215,12 @@ public final class MessageFormatter {
 
         if (senderName != null && !senderName.isBlank()) {
             attributes.append(" sender=\"").append(senderName).append('"');
+            String gender = genders.genderOf(senderId);
+            if (!gender.isEmpty()) {
+                // подсказка модели, чтобы не путала «он/она». «f» — женский,
+                // «m» — мужской. Не всегда верно, но в большинстве случаев хватает
+                attributes.append(" gender=\"").append(gender.equals("f") ? "female" : "male").append('"');
+            }
         }
     }
 

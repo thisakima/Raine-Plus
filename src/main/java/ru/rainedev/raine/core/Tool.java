@@ -83,6 +83,10 @@ public record Tool(String name, String description, ObjectNode parameters, Conte
             return property(property, "integer", description, true);
         }
 
+        public Builder optionalInteger(String property, String description) {
+            return property(property, "integer", description, false);
+        }
+
         /** С булевыми параметрами модели справляются надёжнее, чем со строкой «true». */
         public Builder optionalBoolean(String property, String description) {
             return property(property, "boolean", description, false);

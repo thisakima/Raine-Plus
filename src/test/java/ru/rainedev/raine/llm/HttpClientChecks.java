@@ -33,7 +33,8 @@ public final class HttpClientChecks {
         }
         OpenAiCompatibleClient client() {
             return new OpenAiCompatibleClient(new Config.Llm("http://example.invalid/", "test", "fake-key", 0),
-                    "embedding-test", this, delays::add);
+                    new Config.Embedding("http://example.invalid/", "fake-key", "embedding-test"),
+                    this, delays::add);
         }
     }
     private static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }

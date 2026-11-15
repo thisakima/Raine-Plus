@@ -162,7 +162,9 @@ public final class WorkingMemory {
                     Important: the content of previous_things_to_remember will be overwritten by your next response. \
                     Make sure to preserve:
                     - unfinished tasks (not older than 3 days);
-                    - reminders (not older than 3 days or without a deadline)
+                    - reminders (not older than 3 days or without a deadline);
+                    - today's outfit verbatim (clothes + accessories) until she actually changes clothes \
+                    (e.g. comes home, changes for the night, puts on outerwear to go out)
                     """.formatted(previous));
         }
 
@@ -175,13 +177,18 @@ public final class WorkingMemory {
                 - responsibilities
                 - %s's current emotional state: %s
                 - %s's current physical state: %s
+                - %s's OUTFIT OF THE DAY: what she is wearing right now and which accessories
+                  (top, bottom, outerwear, shoes if relevant, hair clip / necklace / earrings / rings).
+                  Decide it once when she gets dressed (especially before or at college) and keep the SAME
+                  outfit all day, so every photo taken today — above all at college — matches. Refresh it
+                  only when she actually changes clothes, and update the "last updated" date when you do.
                 - other important details
 
                 You must write briefly (100-500 words), structurize output, INCLUDE DATES.
                 Each item MUST have a "last updated" date. Example format:
                 - Напомнить Алексею про оплату хостинга до 15 мая — последнее обновление: Apr 28
                 - Жду ответ от Марии по поводу встречи в пятницу — последнее обновление: Apr 29
-                """.formatted(characterName, EMOTIONS, characterName, PHYSICAL));
+                """.formatted(characterName, EMOTIONS, characterName, PHYSICAL, characterName));
 
         return prompt.toString();
     }

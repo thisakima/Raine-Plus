@@ -17,6 +17,7 @@ class OpenedChatToolsTest {
 
     /** Отвечает по сценарию: сначала открыть чат, потом действовать в нём. */
     private static final class ScriptedLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final Deque<String> plan = new ArrayDeque<>(List.of("open_second", "act", "wait"));
 
         @Override

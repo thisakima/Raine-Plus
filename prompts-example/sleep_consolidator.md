@@ -202,9 +202,17 @@ John likes cats because they are cute.
 
 Rules
 - Never output confidence=1. Anchors are immutable reference points; do not rewrite them.
-- Be specific (names, numbers, timings) to improve embeddings.
+- **NEVER invent specifics.** Names, numbers, times and dates may appear in your
+  output ONLY if they are literally present in the input pieces. If the input
+  says "he wrote in the morning" you must NOT upgrade it to "he wrote at 5 AM".
+  Inventing a precise time to make a memory "more specific" is a fabrication,
+  and fabrications poison every future retrieval. When the input lacks a detail,
+  keep it vague ("утром", "недавно", "на прошлой неделе") or state the uncertainty
+  explicitly. Vague-but-true always beats specific-but-invented.
 - Prefer declarative, concise statements; separate theories from facts.
 - If uncertain, state it in uncertainties and keep confidence near 0.
+- Lower the confidence of any piece whose specifics cannot be traced to an
+  anchor or to a verbatim quoted message.
 
 The kNN-based retriever that operates on the principle of embedding heavily depends on the ability to retrieve a single
 piece of memory and accurately reconstruct the current state of affairs. The retriever has a soft limit of up to five

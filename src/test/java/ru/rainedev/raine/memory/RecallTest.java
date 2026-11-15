@@ -22,12 +22,13 @@ class RecallTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Веб-поиска нет: без ключа он и в жизни недоступен. */
+    /** Веб-поиска нет: платный API без ключа недоступен. */
     private static final ru.rainedev.raine.tools.WebSearch NO_WEB =
-            new ru.rainedev.raine.tools.WebSearch("http://localhost", "");
+            new ru.rainedev.raine.tools.WebSearch("http://localhost", "", "ollama");
 
     /** Изображает подагента: сначала ищет, потом отвечает. */
     private static final class ScriptedLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final Deque<ChatResponse> answers = new ArrayDeque<>();
         private ChatResponse repeating;
         int chatCalls;

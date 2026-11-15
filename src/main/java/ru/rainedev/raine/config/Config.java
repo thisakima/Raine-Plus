@@ -28,8 +28,9 @@ public record Config(
         Camera camera,
         String webSearchUrl,
         String webSearchKey,
+        String webSearchProvider,
         Llm llm,
-        String embeddingModel,
+        Embedding embedding,
         Character character,
         long contextTokenLimit,
         String lockdown,
@@ -39,10 +40,14 @@ public record Config(
         Night night,
         Around around,
         int noticeDelaySeconds,
+        int webUiPort,
+        boolean offlineLife,
         boolean readOnly,
         boolean llmTranscript,
         Behaviour behaviour,
-        Repeat repeat
+        Repeat repeat,
+        Browser browser,
+        TikTok tiktok
 ) {
 
     /** Параметры OpenAI-совместимого эндпоинта. */
@@ -54,6 +59,17 @@ public record Config(
     }
 
     public record Llm(String baseUrl, String model, String apiKey, double temperature) {}
+
+    /**
+     * Векторы памяти. По умолчанию — эндпоинт модели, но можно указать
+     * локальный: Ollama и любой OpenAI-совместимый сервер отдают /embeddings
+     * тем же форматом.
+     *
+     * @param baseUrl адрес эмбеддингов; пусто — адрес модели
+     * @param apiKey ключ эмбеддингов; пусто — без ключа; отсутствие — ключ модели
+     * @param model название модели
+     */
+    public record Embedding(String baseUrl, String apiKey, String model) {}
 
     /**
      * Модели зрения. Дешёвая для потокового — стикеры и аватарки, основная
@@ -78,8 +94,26 @@ public record Config(
     public record Around(boolean enabled, double latitude, double longitude) {}
 
     /** Синтез речи для голосовых сообщений. */
-    public record Voice(boolean enabled, String baseUrl, String apiKey, String model, String voice,
-                        String language, double speed, int sampleRate, int bitrate, Path directory) {}
+    /**
+     * @param provider чем синтезируется: openai (совместимый эндпоинт) или fish
+     * @param format   в каком формате просим звук: pcm, wav, mp3 или opus
+     * @param voice    голос: для openai — имя, для fish — reference_id
+     */
+    public record Voice(boolean enabled, String provider, String format, String baseUrl, String apiKey,
+                        String model, String voice, String language, double speed, int sampleRate, int bitrate,
+                        Path directory) {
+        public Voice {
+            if (!"openai".equalsIgnoreCase(provider) && !"fish".equalsIgnoreCase(provider)) {
+                throw new IllegalArgumentException(
+                        "Неизвестный синтез речи '" + provider + "' — бывает openai или fish");
+            }
+            if (!"pcm".equalsIgnoreCase(format) && !"wav".equalsIgnoreCase(format)
+                    && !"mp3".equalsIgnoreCase(format) && !"opus".equalsIgnoreCase(format)) {
+                throw new IllegalArgumentException(
+                        "Неизвестный формат синтеза '" + format + "' — бывает pcm, wav, mp3 или opus");
+            }
+        }
+    }
 
     /**
      * Слух: расшифровка звуковой дорожки видео. Голосовые и кружки
@@ -122,6 +156,73 @@ public record Config(
      */
     public record Repeat(double triggerMax, double triggerAvg, int maxHistory) {}
 
+    /**
+     * Тело для браузера: живой Firefox под управлением Playwright. Профиль
+     * постоянный — в нём остаются входы на сайты (в том числе в TikTok), так
+     * что логиниться заново после перезапуска не нужно.
+     *
+     * @param headless    без окна. Для TikTok лучше false + виртуальный дисплей (Xvfb):
+     *                    так она выглядит человечнее для антибот-систем
+     * @param engine      chromium | firefox | webkit; Firefox по умолчанию — он
+     *                    без приметок Chromium, которые первым делом видит антибот
+     * @param userAgent   строка браузера; пусто — оставляет свою
+     * @param loginBinary настоящий браузер для ручного входа; пусто — найти самому.
+     *                    Вход идёт не тем Firefox, которым управляет Playwright:
+     *                    это патченая nightly-сборка, и Google с TikTok не пускают
+     *                    в аккаунт через неё («браузер может быть небезопасным»).
+     */
+    public record Browser(boolean enabled, boolean headless, String engine, Path profileDir, String locale,
+                          String timezone, int viewportWidth, int viewportHeight, String userAgent,
+                          String loginBinary) {
+
+        /**
+         * Каталог профиля под конкретный движок. Профили Chromium и Firefox
+         * несовместимы: Firefox 137 не открывает профиль, созданный Firefox 159
+         * (проверено), и наоборот — поэтому у каждого свой подкаталог.
+         */
+        public Path profileFor() {
+            return profileDir.resolve(engineName());
+        }
+
+        /**
+         * Профиль для ручного входа — отдельный и от её рабочего, и от личного
+         * профиля человека: настоящий браузер другой версии, и общим профилем
+         * им не пользоваться.
+         */
+        public Path loginProfile() {
+            return profileDir.resolve("login");
+        }
+
+        public String engineName() {
+            String value = engine == null ? "" : engine.strip().toLowerCase();
+            return switch (value) {
+                case "chromium", "chrome" -> "chromium";
+                case "webkit" -> "webkit";
+                default -> "firefox";
+            };
+        }
+    }
+
+    /**
+     * Привычки в TikTok. Всё с оглядкой на антибот: действия редкие, с
+     * суточными пределами и охлаждением, первые дни — только просмотр.
+     * Автоматизация TikTok нарушает его правила и может привести к бану —
+     * пределы намеренно низкие.
+     *
+     * @param maxVideosPerSession сколько роликов смотреть за один заход
+     * @param cooldownMinutes     пауза между сессиями
+     * @param warmupDays          сколько дней с момента первого входа только смотреть
+     */
+    public record TikTok(boolean enabled, String username, Path downloadDir, int maxVideosPerSession,
+                         double likeChance, double commentChance, double repostChance,
+                         int dailyLikeCap, int dailyCommentCap, int dailyFollowCap, int dailyDmCap,
+                         int cooldownMinutes, int warmupDays) {}
+
+    /** Пустое значение настройки означает «как по умолчанию». */
+    private static String orDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
     private static final Path DEFAULT_FILE = Path.of("config.properties");
 
     public static Path defaultFile() {
@@ -134,6 +235,9 @@ public record Config(
 
     public static Config load(Path file) {
         Settings s = Settings.read(file);
+        // адрес и ключ модели — по умолчанию у синтеза речи, у распознавания и у векторов
+        String llmBaseUrl = s.require("llm_base_url", "адрес модели");
+        String llmApiKey = s.require("llm_api_key", "ключ модели");
         Config config = new Config(
                 Integer.parseInt(s.require("api_id", "идентификатор приложения с my.telegram.org")),
                 s.require("api_hash", "ключ приложения с my.telegram.org"),
@@ -164,20 +268,30 @@ public record Config(
                                 "разбирать ли ролики в каналах покадрово; обычно хватает заставки")),
                 new Voice(
                         s.flag("voice_enabled", true, "может ли записывать голосовые"),
-                        s.get("voice_base_url", s.require("llm_base_url", "адрес модели"), "адрес синтеза речи"),
-                        s.get("voice_api_key", s.require("llm_api_key", "ключ модели"), "ключ синтеза речи"),
-                        s.get("voice_model", "google/gemini-3.1-flash-tts-preview", "модель синтеза речи"),
-                        s.get("voice_name", "Leda", "голос"),
-                        s.get("voice_language", "ru", "язык речи: без него синтез угадывает его по тексту"),
-                        s.fraction("voice_speed", 1.2, "скорость речи"),
+                        s.get("voice_provider", "openai", "чем синтезируется речь: openai или fish"),
+                        s.get("voice_format", "pcm",
+                                "в каком формате просим звук: pcm, wav, mp3 или opus; "
+                                        + "что бы ни пришло, разбирается"),
+                        s.get("voice_base_url", llmBaseUrl,
+                                "адрес синтеза речи; для fish — https://api.fish.audio/v1"),
+                        s.get("voice_api_key", llmApiKey,
+                                "ключ синтеза речи; для fish — ключ из fish.audio"),
+                        s.get("voice_model", "google/gemini-3.1-flash-tts-preview",
+                                "модель синтеза речи; для fish — s2.1-pro-free"),
+                        s.get("voice_name", "Leda",
+                                "голос: для openai — имя, для fish — reference_id голоса"),
+                        s.get("voice_language", "ru",
+                                "язык речи: без него синтез угадывает его по тексту; для fish не нужен"),
+                        s.fraction("voice_speed", 1.2,
+                                "скорость речи; для fish не нужен"),
                         s.integer("voice_sample_rate", 24000, "частота дискретизации синтеза"),
                         s.integer("voice_bitrate", 24000, "битрейт голосового сообщения"),
                         s.path("voice_dir", "data/voice_messages", "куда складывать записанные голосовые")),
                 new Hearing(
                         s.flag("hearing_enabled", true, "расшифровывать ли звук из присланных видео"),
-                        s.get("hearing_base_url", s.require("llm_base_url", "адрес модели"),
+                        s.get("hearing_base_url", llmBaseUrl,
                                 "адрес распознавания речи"),
-                        s.get("hearing_api_key", s.require("llm_api_key", "ключ модели"),
+                        s.get("hearing_api_key", llmApiKey,
                                 "ключ распознавания речи"),
                         s.get("hearing_model", "openai/whisper-1", "модель распознавания речи"),
                         s.get("hearing_language", "ru", "язык, на котором говорят в видео")),
@@ -193,13 +307,23 @@ public record Config(
                         s.integer("camera_queue_minutes", 60,
                                 "сколько минут ждать своей очереди в сети добровольцев")),
                 s.get("web_search_url", "https://ollama.com/api/web_search", "адрес поиска в сети"),
-                s.get("web_search_key", "", "ключ поиска в сети; пустой — поиска не будет"),
+                s.get("web_search_key", "", "ключ поиска в сети; пустой — только бесплатный DuckDuckGo"),
+                s.get("web_search_provider", "auto",
+                        "кто ищет: auto (сначала бесплатный DuckDuckGo, при неудаче платный API), "
+                                + "duckduckgo (только бесплатный), ollama (только платный по ключу)"),
                 new Llm(
-                        s.require("llm_base_url", "адрес модели"),
+                        llmBaseUrl,
                         s.require("llm_model", "название модели"),
-                        s.require("llm_api_key", "ключ модели"),
+                        llmApiKey,
                         s.fraction("llm_temperature", 0.2, "температура модели")),
-                s.get("embedding_model", "openai/text-embedding-3-large", "модель для векторов памяти"),
+                new Embedding(
+                        orDefault(s.get("embedding_base_url", llmBaseUrl,
+                                "адрес эмбеддингов; пусто — адрес модели; "
+                                        + "для локальной модели: http://127.0.0.1:11434/v1"), llmBaseUrl),
+                        s.get("embedding_api_key", llmApiKey,
+                                "ключ эмбеддингов; пусто — без ключа, у локального сервера он не нужен"),
+                        s.get("embedding_model", "openai/text-embedding-3-large",
+                                "модель для векторов памяти")),
                 new Character(
                         s.get("character_name", "Raine", "имя"),
                         s.get("character_nickname", "@raine_tyan", "ник в Telegram"),
@@ -223,6 +347,12 @@ public record Config(
                         s.fraction("around_latitude", 55.75, "широта места, где она «живёт»"),
                         s.fraction("around_longitude", 37.62, "долгота места, где она «живёт»")),
                 s.integer("notice_delay_seconds", 30, "до скольких секунд тянуть с ответом"),
+                s.integer("web_ui_port", 0,
+                        "порт локальной веб-панели (http://127.0.0.1:<порт>) для наблюдения за логами; "
+                                + "0 — выключена. Панель слушает только на localhost и ничего не меняет"),
+                s.flag("offline_life", true,
+                        "жить ли свой день, пока Telegram недоступен: фото, дневник, браузер, мысли. "
+                                + "Действия в Telegram при этом всё равно запрещены"),
                 s.flag("read_only", true, "только смотреть и ничего не отправлять"),
                 s.flag("llm_transcript", true,
                         "записывать ли каждый запрос к модели и ответ в logs/llm — этим разбирают, "
@@ -243,7 +373,43 @@ public record Config(
                         s.fraction("anti_repeat_trigger_avg", 0.85,
                                 "выше этой средней близости ко всем — хождение по кругу"),
                         s.integer("anti_repeat_max_history", 32,
-                                "сколько своих реплик держать для сравнения")));
+                                "сколько своих реплик держать для сравнения")),
+                new Browser(
+                        s.flag("browser_enabled", false,
+                                "дать ли ей браузер: живой Firefox, чтобы сидеть на сайтах и в соцсетях"),
+                        s.flag("browser_headless", false,
+                                "браузер без окна; для TikTok лучше false и запустить под Xvfb"),
+                        s.get("browser_engine", "firefox",
+                                "движок: firefox (по умолчанию), chromium или webkit"),
+                        s.path("browser_profile_dir", "data/browser/profile",
+                                "постоянный профиль браузера: в нём остаются входы на сайты; "
+                                        + "подкаталог на каждый движок"),
+                        s.get("browser_locale", "ru-RU", "язык/регион браузера"),
+                        s.get("browser_timezone", "Europe/Moscow", "часовой пояс браузера"),
+                        s.integer("browser_viewport_width", 1280, "ширина окна браузера"),
+                        s.integer("browser_viewport_height", 800, "высота окна браузера"),
+                        s.get("browser_user_agent", "",
+                                "строка браузера; пусто — оставить свою"),
+                        s.get("browser_login_binary", "",
+                                "настоящий браузер для ручного входа (например /usr/bin/firefox); "
+                                        + "пусто — найти в системе самому")),
+                new TikTok(
+                        s.flag("tiktok_enabled", false,
+                                "сидеть ли в TikTok со своего аккаунта (лента, лайки, комменты, репосты)"),
+                        s.get("tiktok_username", "", "её ник в TikTok — для поиска друзей и своих видео"),
+                        s.path("tiktok_download_dir", "data/tiktok", "куда складывать скачанные ролики"),
+                        s.integer("tiktok_max_videos_per_session", 12,
+                                "сколько роликов смотреть за один заход"),
+                        s.fraction("tiktok_like_chance", 0.35, "как часто лайкать просмотренное"),
+                        s.fraction("tiktok_comment_chance", 0.06, "как часто комментировать — редко, как человек"),
+                        s.fraction("tiktok_repost_chance", 0.04, "как часто репостить"),
+                        s.integer("tiktok_daily_like_cap", 60, "предел лайков в сутки"),
+                        s.integer("tiktok_daily_comment_cap", 8, "предел комментариев в сутки"),
+                        s.integer("tiktok_daily_follow_cap", 5, "предел подписок в сутки"),
+                        s.integer("tiktok_daily_dm_cap", 10, "предел личных сообщений в сутки"),
+                        s.integer("tiktok_cooldown_minutes", 90, "пауза между сессиями в TikTok, минут"),
+                        s.integer("tiktok_warmup_days", 3,
+                                "сколько дней с первого входа только смотреть, не действуя")));
         s.sync();
         return config;
     }

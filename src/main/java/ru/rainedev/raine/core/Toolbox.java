@@ -84,12 +84,23 @@ public final class Toolbox {
      *                 прежнего чата и сообщение уйдёт не туда
      */
     public List<ru.rainedev.raine.llm.Message> invoke(List<ToolCall> calls, java.util.function.Consumer<Tool> appeared) {
+        return invoke(calls, appeared, () -> true);
+    }
+
+    public List<ru.rainedev.raine.llm.Message> invoke(List<ToolCall> calls, java.util.function.Consumer<Tool> appeared,
+                                                   java.util.function.BooleanSupplier allowed) {
         // инструменту бывает важно знать, один ли он в этом шаге
         CurrentStep.set(calls);
         try {
             List<ru.rainedev.raine.llm.Message> results = new ArrayList<>();
             for (int index = 0; index < calls.size(); index++) {
                 ToolCall call = calls.get(index);
+                if (!allowed.getAsBoolean()) {
+                    results.add(ru.rainedev.raine.llm.Message.toolResult(call.id(),
+                            "Not executed: Telegram connectivity changed or an earlier action is unconfirmed. "
+                                    + "Wait for synchronization and refresh the chat; do not replay this batch."));
+                    continue;
+                }
                 try {
                     results.add(ru.rainedev.raine.llm.Message.toolResult(call.id(), clean(invokeOne(call, appeared))));
                 } catch (LowQualityException failure) {

@@ -47,17 +47,33 @@ public final class StickerTools {
      * Описания берутся зрением и кэшируются, поэтому список стоит дорого
      * только в первый раз.
      */
+    /**
+     * Сколько стикеров брать из каждого пака при широком списке. Три —
+     * разумный компромисс: выбор достаточный, а описание быстрое.
+     */
+    private static final int PER_PACK = 3;
+
+    /**
+     * Описания стикеров кэшируются в памяти: каждый раз прогонять их через
+     * модель зрения — это секунды ожидания на каждое сообщение. Vision
+     * кэширует на диск, но даже чтение диска и разбор строк ощутимы,
+     * когда стикеров десятки.
+     */
+    private final java.util.Map<Long, String> descriptionCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     public Tool list() {
-        return Tool.simple("sticker_list", "Returns your saved stickers with a description of each. "
-                + "Use this before #sticker_send.", arguments -> {
-                    List<TdApi.Sticker> stickers = telegram.savedStickers(LIMIT);
+        return Tool.simple("sticker_list", "Returns your stickers with a description of each — "
+                + "a sample from every installed pack plus your favourites and recent ones. "
+                + "Use this before #sticker_send to pick one that fits the mood.", arguments -> {
+                    // живые люди не выбирают стикер из «последних использованных» —
+                    // они в голове держат все свои паки. Так и здесь: сэмпл из каждого
+                    List<TdApi.Sticker> stickers = telegram.allStickersForChoice(PER_PACK);
                     if (stickers.isEmpty()) {
-                        // паки могут быть и при пустом избранном: тогда выбор есть,
-                        // просто он лежит не здесь
                         String packs = packsOfMine();
                         return packs.isEmpty()
                                 ? "You have no saved stickers yet."
-                                : "You have no favourite stickers yet, but you have packs." + packs;
+                                : "You have no stickers yet, but you have packs." + packs;
                     }
                     return describe(stickers) + packsOfMine();
                 });
@@ -95,15 +111,55 @@ public final class StickerTools {
                 });
     }
 
-    /** Список с описаниями — общий вид и для своих стикеров, и для пака. */
+    /**
+     * Список с описаниями. Описания берутся из кэша в памяти, а если стикер
+     * ещё не описан — описываются параллельно, чтобы первый вызов не тормозил
+     * весь чат на полминуты.
+     */
     private String describe(List<TdApi.Sticker> stickers) {
+        // те, что уже описаны, отдаются мгновенно; остальные — параллельно
+        java.util.Map<Long, String> missing = new java.util.concurrent.ConcurrentHashMap<>();
+        List<TdApi.Sticker> toDescribe = new java.util.ArrayList<>();
+        for (TdApi.Sticker sticker : stickers) {
+            String cached = descriptionCache.get(sticker.id);
+            if (cached != null) {
+                missing.put(sticker.id, cached);
+            } else {
+                toDescribe.add(sticker);
+            }
+        }
+        if (!toDescribe.isEmpty() && media != null) {
+            try (var pool = java.util.concurrent.Executors.newFixedThreadPool(
+                    Math.min(6, toDescribe.size()),
+                    Thread.ofVirtual().name("raine-sticker-", 0).factory())) {
+                List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+                for (TdApi.Sticker sticker : toDescribe) {
+                    futures.add(pool.submit(() -> {
+                        String desc = media.describeSticker(sticker);
+                        descriptionCache.put(sticker.id, desc == null ? "" : desc);
+                    }));
+                }
+                for (java.util.concurrent.Future<?> f : futures) {
+                    try {
+                        f.get();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } catch (java.util.concurrent.ExecutionException e) {
+                        // один стикер не описался — не повод ронять весь список
+                        log.debug("Стикер не описался: {}", e.getMessage());
+                    }
+                }
+            }
+        }
+
         StringBuilder out = new StringBuilder("<stickers>\n");
         for (TdApi.Sticker sticker : stickers) {
             out.append("<sticker sticker_id=\"").append(sticker.id)
                     .append("\" emoji=\"").append(sticker.emoji == null ? "" : sticker.emoji)
                     .append("\">");
-            if (media != null) {
-                out.append('\n').append(media.describeSticker(sticker).strip()).append('\n');
+            String desc = descriptionCache.getOrDefault(sticker.id, "");
+            if (!desc.isBlank()) {
+                out.append('\n').append(desc.strip()).append('\n');
             }
             out.append("</sticker>\n");
         }
@@ -126,6 +182,33 @@ public final class StickerTools {
                     .append("\" stickers=\"").append(set.size).append("\" />\n");
         }
         return out.append("</sticker_packs>\nOpen any of them with #sticker_pack.").toString();
+    }
+
+    /**
+     * Установить себе весь пак, из которого пришёл чужой стикер. Когда
+     * собеседник кидает классный стикер, живой человек часто забирает себе
+     * весь набор, а не одну штуку.
+     */
+    public Tool savePack() {
+        return Tool.named("sticker_save_pack")
+                .describedAs("Installs the whole sticker pack that a received sticker belongs to. "
+                        + "Use this when someone sent a sticker you really liked and you want "
+                        + "the whole pack, not just one sticker.")
+                .requiredInteger("sticker_id", "Id of the sticker whose pack you want to install")
+                .build(arguments -> {
+                    long stickerId = ru.rainedev.raine.core.Numbers.longAt(arguments, "sticker_id", 0);
+                    if (stickerId == 0) {
+                        return "Provide the sticker_id.";
+                    }
+                    String packName = telegram.installPackBySticker(stickerId);
+                    if (packName.isEmpty()) {
+                        return "Couldn't find the pack for that sticker, or it's already installed.";
+                    }
+                    log.info("Пак {} установлен по чужому стикеру", packName);
+                    return "Pack \"%s\" installed. Use #sticker_pack with this name to see all stickers in it, "
+                            .formatted(packName)
+                            + "or pick one right away with #sticker_list.";
+                });
     }
 
     /** Понравившийся чужой стикер можно забрать себе. */

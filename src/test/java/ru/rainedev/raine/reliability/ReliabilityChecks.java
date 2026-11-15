@@ -18,6 +18,7 @@ import ru.rainedev.raine.storage.AtomicFiles;
 public final class ReliabilityChecks {
     private ReliabilityChecks() {}
     private static final class Fake implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         java.util.function.Function<List<Message>, ChatResponse> respond = h -> response("wait");
         java.util.function.Function<String, double[]> embed = s -> new double[] {1, 0};
         int chats;

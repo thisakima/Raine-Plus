@@ -19,9 +19,11 @@ class NotificationLoopTest {
 
     /** Заглушка вместо модели: отдаёт заранее заготовленные ответы по очереди. */
     private static final class ScriptedLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final Deque<ChatResponse> scripted = new ArrayDeque<>();
         private final List<List<Message>> seenContexts = new ArrayList<>();
         private int calls;
+        private Runnable beforeResponse = () -> {};
 
         private ChatResponse repeating;
 
@@ -38,6 +40,7 @@ class NotificationLoopTest {
         public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
             calls++;
             seenContexts.add(List.copyOf(history));
+            beforeResponse.run();
             if (!scripted.isEmpty()) {
                 return scripted.removeFirst();
             }
@@ -72,6 +75,118 @@ class NotificationLoopTest {
 
     private NotificationLoop loopWith(ScriptedLlm llm, Toolbox tools) {
         return new NotificationLoop(llm, () -> "системный промпт", tools, 40_000);
+    }
+
+    @Test
+    void offlineLoopDoesNotAskTheModelAndStopsPromptly() throws Exception {
+        ScriptedLlm llm = new ScriptedLlm();
+        NotificationLoop loop = loopWith(llm, new Toolbox());
+        loop.transport(() -> false, () -> 1, ignored -> {}, () -> "", () -> {});
+        loop.submit(new Notification("incoming"));
+        Thread worker = Thread.ofVirtual().start(loop::run);
+        loop.stop();
+        assertTrue(loop.awaitStopped(java.time.Duration.ofSeconds(2)));
+        worker.join();
+        assertEquals(0, llm.calls);
+    }
+
+    @Test
+    void disconnectDuringGenerationSkipsEveryToolWithACompleteProtocol() {
+        ScriptedLlm llm = new ScriptedLlm();
+        java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong(1);
+        List<String> sent = new ArrayList<>();
+        NotificationLoop loop = loopWith(llm, new Toolbox(Tool.simple("send", "send", args -> {
+            sent.add("sent");
+            return "confirmed";
+        })));
+        loop.transport(() -> true, generation::get, ignored -> {}, () -> "", () -> {});
+        assertTrue(loop.refreshTransport());
+        llm.beforeResponse = generation::incrementAndGet;
+        llm.willRespond(withToolCalls(List.of(call("send"), call("wait")), 10));
+        loop.process(new Notification("incoming"));
+        assertTrue(sent.isEmpty());
+        List<Message> results = loop.context().stream().filter(m -> m.role() == Message.Role.TOOL).toList();
+        assertEquals(2, results.size());
+        assertTrue(results.stream().allMatch(m -> m.content().startsWith("Not executed:")));
+    }
+
+    @Test
+    void disconnectAfterFirstToolKeepsItsResultButSkipsTheSuffix() {
+        ScriptedLlm llm = new ScriptedLlm();
+        java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong(1);
+        List<String> sent = new ArrayList<>();
+        Toolbox tools = new Toolbox(Tool.simple("first", "first", args -> {
+            sent.add("first");
+            generation.incrementAndGet();
+            return "CONFIRMED message_id=123";
+        }), Tool.simple("second", "second", args -> {
+            sent.add("second");
+            return "unexpected";
+        }));
+        NotificationLoop loop = loopWith(llm, tools);
+        loop.transport(() -> true, generation::get, ignored -> {}, () -> "delivery facts", () -> {});
+        assertTrue(loop.refreshTransport());
+        llm.willRespond(withToolCalls(List.of(call("first"), call("second"), call("wait")), 10));
+        loop.process(new Notification("incoming"));
+        assertEquals(List.of("first"), sent);
+        List<Message> results = loop.context().stream().filter(m -> m.role() == Message.Role.TOOL).toList();
+        assertEquals(3, results.size());
+        assertEquals("CONFIRMED message_id=123", results.getFirst().content());
+        assertTrue(results.get(1).content().startsWith("Not executed:"));
+        assertEquals("delivery facts", loop.context().getLast().content());
+    }
+
+    @Test
+    void reconnectDiscardsStaleImpulsesAndRefreshesChatsWhileKeepingPhotoContext() {
+        ScriptedLlm llm = new ScriptedLlm();
+        NotificationLoop loop = loopWith(llm, new Toolbox());
+        List<Notification> discarded = new ArrayList<>();
+        loop.onNotificationDiscarded(discarded::add);
+        Notification stale = new Notification("old impulse");
+        Notification photo = new Notification("photo ready", new Toolbox(), true);
+        loop.submit(stale);
+        loop.submit(photo);
+        loop.transport(() -> true, () -> 1, ignored -> {}, () -> "", () -> {
+            loop.submit(new Notification("<notification chat_id=\"1\">fresh history</notification>"));
+            loop.submit(new Notification("<notification chat_id=\"1\">newer history</notification>"));
+        });
+        assertTrue(loop.refreshTransport());
+        assertEquals(2, loop.queued());
+        assertTrue(discarded.contains(stale));
+        assertFalse(discarded.contains(photo));
+        assertTrue(loop.available());
+    }
+
+    @Test
+    void reconnectDiscardsAnLlmRetryAndReopensOnlyCurrentHistory() {
+        ScriptedLlm llm = new ScriptedLlm();
+        NotificationLoop loop = loopWith(llm, new Toolbox());
+        java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong(1);
+        loop.transport(() -> true, generation::get, ignored -> {}, () -> "", () -> {});
+        assertTrue(loop.refreshTransport());
+        List<Notification> discarded = new ArrayList<>();
+        loop.onNotificationDiscarded(discarded::add);
+        Notification incoming = new Notification("<notification chat_id=\"1\">incoming</notification>",
+                new Toolbox(Tool.named("open").buildContextual((args, add) -> {
+                    add.accept(Tool.simple("stale_send", "stale", ignored -> "must not be replayed"));
+                    return "history";
+                })));
+        llm.beforeResponse = () -> { throw new java.io.UncheckedIOException(new java.io.IOException("offline")); };
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.UncheckedIOException.class, () -> loop.process(incoming));
+        generation.incrementAndGet();
+        assertTrue(loop.refreshTransport());
+        assertTrue(discarded.contains(incoming));
+        assertEquals(1, loop.queued());
+        llm.beforeResponse = () -> {};
+    }
+
+    @Test
+    void repeatedNotificationsAreCoalescedAndTheQueueIsBounded() {
+        NotificationLoop loop = loopWith(new ScriptedLlm(), new Toolbox());
+        for (int i = 0; i < 200; i++) loop.submit(new Notification("<notification chat_id=\"1\">" + i));
+        assertEquals(1, loop.queued());
+        for (int i = 0; i < 200; i++) loop.submit(new Notification("unique " + i));
+        assertEquals(100, loop.queued());
     }
 
     @Test

@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
  * Генерация картинок на общей сети добровольцев: работа ставится в очередь,
  * а результат забирается, когда чей-то компьютер её выполнит.
  */
-public final class HordeClient {
+public final class HordeClient implements ImageClient {
 
     private static final Logger log = LoggerFactory.getLogger(HordeClient.class);
 
@@ -84,6 +84,12 @@ public final class HordeClient {
     }
 
     /** @return содержимое готовой картинки */
+    @Override
+    public boolean wantsKeywordPrompt() {
+        return true;   // чекпойнт понимает теги с весами
+    }
+
+    @Override
     public byte[] generate(String positive, String negative, int width, int height, double cfgScale, int steps) {
         String id = submit(positive, negative, width, height, cfgScale, steps);
         waitUntilDone(id);

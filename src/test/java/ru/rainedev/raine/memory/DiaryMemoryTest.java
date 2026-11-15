@@ -17,6 +17,7 @@ class DiaryMemoryTest {
 
     /** Отдаёт заранее заданный вектор — поиск проверяем без обращения к сети. */
     private record FixedEmbedding(double[] vector) implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         @Override
         public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
             throw new UnsupportedOperationException();
@@ -123,6 +124,7 @@ class DiaryMemoryTest {
     void failedEmbeddingDoesNotBreakConversation(@TempDir Path dir) {
         Diary diary = diaryWith(dir, "мы ездили на Байкал");
         LlmClient broken = new LlmClient() {
+            @Override public String modelName() { return "test-model"; }
             @Override
             public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
                 throw new UnsupportedOperationException();

@@ -26,6 +26,32 @@ public final class Main {
             return;
         }
 
+        // один раз войти в TikTok вручную: открываем постоянный профиль браузера
+        // без автоматизации и ждём, пока человек залогинится. Telegram для этого
+        // не нужен.
+        if (args.length > 0 && args[0].equals("tiktok-login")) {
+            ru.rainedev.raine.cli.TikTokLoginCommand.run(config);
+            return;
+        }
+
+        // то же для любого другого сайта: browser-login <url>
+        if (args.length > 0 && args[0].equals("browser-login")) {
+            String url = args.length > 1
+                    ? String.join(" ", java.util.Arrays.asList(args).subList(1, args.length))
+                    : "";
+            ru.rainedev.raine.cli.BrowserLoginCommand.run(config, url);
+            return;
+        }
+
+        // вход уже есть в профиле входа — перенести его в её профиль без окна
+        if (args.length > 0 && args[0].equals("browser-import")) {
+            String url = args.length > 1
+                    ? String.join(" ", java.util.Arrays.asList(args).subList(1, args.length))
+                    : "";
+            ru.rainedev.raine.cli.BrowserLoginCommand.importOnly(config, url);
+            return;
+        }
+
         Init.init();
         // подробность TDLib: 1 — только ошибки, 3 — видно, что приходит с сервера
         Log.setLogMessageHandler(Integer.getInteger("raine.tdlib.verbosity", 1),

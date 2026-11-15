@@ -17,6 +17,7 @@ class GracefulStopTest {
 
     /** Модель, которая отвечает долго — как настоящая. */
     private record SlowLlm(CountDownLatch started, Duration thinking) implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         @Override
         public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
             started.countDown();

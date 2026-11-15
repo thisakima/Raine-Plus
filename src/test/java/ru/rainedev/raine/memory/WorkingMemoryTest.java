@@ -20,6 +20,7 @@ import ru.rainedev.raine.llm.Message;
 class WorkingMemoryTest {
 
     private static final class ScriptedLlm implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         private final Deque<String> answers = new ArrayDeque<>();
         String lastPrompt = "";
         int chatCalls;

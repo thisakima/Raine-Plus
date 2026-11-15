@@ -36,8 +36,9 @@ diary_plagiarism_threshold=0.97
 # ниже этой близости запись не вспоминается, как бы ни просел плавающий порог
 diary_min_relatedness=0.8
 
-# какого объёма пласт памяти пересматривается во сне за один заход
-diary_token_count_trigger=40000
+# жить ли свой день без Telegram (фото, дневник, браузер, мысли); когда связь
+# вернётся — отвечает только на новые сообщения, старые пропускает
+offline_life=true
 
 # видит ли она картинки и видео
 vision_enabled=true
@@ -60,22 +61,28 @@ vision_video_in_channels=false
 # может ли записывать голосовые
 voice_enabled=true
 
-# адрес синтеза речи
+# чем синтезируется речь: openai (совместимый эндпоинт) или fish (Fish Audio)
+voice_provider=openai
+
+# в каком формате просим звук: pcm, wav, mp3 или opus; что бы ни пришло, разбирается
+voice_format=pcm
+
+# адрес синтеза речи; для fish — https://api.fish.audio/v1
 voice_base_url=https://example/api/v1/
 
-# ключ синтеза речи
+# ключ синтеза речи; для fish — ключ из fish.audio
 voice_api_key=ключ
 
-# модель синтеза речи
+# модель синтеза речи; для fish — s2.1-pro-free
 voice_model=google/gemini-3.1-flash-tts-preview
 
-# голос
+# голос: для openai — имя, для fish — reference_id голоса
 voice_name=Leda
 
-# язык речи: без него синтез угадывает его по тексту
+# язык речи: без него синтез угадывает его по тексту; для fish не нужен
 voice_language=ru
 
-# скорость речи
+# скорость речи; для fish не нужен
 voice_speed=1.2
 
 # частота дискретизации синтеза
@@ -123,14 +130,24 @@ camera_max_trials=3
 # сколько минут ждать своей очереди в сети добровольцев
 camera_queue_minutes=60
 
-# адрес поиска в сети
+# адрес платного поиска в сети (запасной путь)
 web_search_url=https://ollama.com/api/web_search
 
-# ключ поиска в сети; пустой — поиска не будет
+# ключ платного поиска; пустой — только бесплатный DuckDuckGo
 web_search_key=
+
+# кто ищет: auto (сначала DuckDuckGo, при неудаче — платный API),
+# duckduckgo (только бесплатный), ollama (только платный по ключу)
+web_search_provider=auto
 
 # температура модели
 llm_temperature=0.2
+
+# адрес эмбеддингов; пусто — адрес модели; для локальной модели http://127.0.0.1:11434/v1
+embedding_base_url=
+
+# ключ эмбеддингов; пусто — ключ модели; у локального сервера его может не быть
+embedding_api_key=
 
 # модель для векторов памяти
 embedding_model=openai/text-embedding-3-large
@@ -220,3 +237,68 @@ anti_repeat_max_history=32
 sleep_consolidation_minutes=30
 sleep_consolidation_max_requests=20
 sleep_consolidation_max_tokens=100000
+
+# --- браузер: тело, чтобы сидеть на сайтах и в соцсетях ---
+
+# дать ли ей браузер: живой Firefox под управлением Playwright (нужен `playwright install firefox`)
+browser_enabled=false
+
+# браузер без окна; для TikTok лучше false и запустить приложение под Xvfb (виртуальный дисплей)
+browser_headless=false
+
+# движок: firefox (по умолчанию, без приметок Chromium), chromium или webkit
+browser_engine=firefox
+
+# постоянный профиль браузера: в нём остаются входы на сайты, включая TikTok.
+# подкаталог под каждый движок (firefox/, chromium/) — профили несовместимы
+browser_profile_dir=data/browser/profile
+
+# язык/регион и часовой пояс браузера — должны совпадать с «местом жительства»
+browser_locale=ru-RU
+browser_timezone=Europe/Moscow
+
+# размер окна браузера
+browser_viewport_width=1280
+browser_viewport_height=800
+
+# строка браузера; пусто — оставить свою
+browser_user_agent=
+
+# настоящий браузер для ручного входа; пусто — найти в системе самому.
+# вход идёт НЕ тем Firefox, которым управляет Playwright: это патченая
+# nightly-сборка, Google и TikTok не пускают в аккаунт через неё
+browser_login_binary=
+
+# --- TikTok: привычки в ленте (нарушает правила TikTok, есть риск бана; лимиты намеренно низкие) ---
+
+# сидеть ли в TikTok со своего аккаунта: лента, лайки, комменты, репосты
+tiktok_enabled=false
+
+# её ник в TikTok — для поиска друзей и своих видео
+tiktok_username=
+
+# куда складывать скачанные ролики
+tiktok_download_dir=data/tiktok
+
+# сколько роликов смотреть за один заход
+tiktok_max_videos_per_session=12
+
+# как часто лайкать / комментировать / репостить просмотренное (комменты и репосты редко, как человек)
+tiktok_like_chance=0.35
+tiktok_comment_chance=0.06
+tiktok_repost_chance=0.04
+
+# суточные пределы действий — антибот
+tiktok_daily_like_cap=60
+tiktok_daily_comment_cap=8
+tiktok_daily_follow_cap=5
+tiktok_daily_dm_cap=10
+
+# пауза между сессиями в TikTok, минут
+tiktok_cooldown_minutes=90
+
+# сколько дней с первого входа только смотреть, не действуя
+tiktok_warmup_days=3
+
+# локальная веб-панель наблюдения: http://127.0.0.1:<порт> (0 = выключена)
+web_ui_port=0

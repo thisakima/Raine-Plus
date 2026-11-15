@@ -49,6 +49,10 @@ public final class TypingIndicator implements AutoCloseable {
         return new TypingIndicator(() -> actions.uploadingPhoto(chatId));
     }
 
+    public static TypingIndicator uploadingVideo(TelegramActions actions, long chatId) {
+        return new TypingIndicator(() -> actions.uploadingVideo(chatId));
+    }
+
     @Override
     public void close() {
         running.set(false);

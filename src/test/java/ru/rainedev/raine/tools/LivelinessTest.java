@@ -121,6 +121,7 @@ class LivelinessTest {
 
     /** Похожесть задаётся вручную: одинаковый текст — одинаковый вектор. */
     private record VectorsByText(Map<String, double[]> vectors) implements LlmClient {
+    @Override public String modelName() { return "test-model"; }
         @Override
         public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
             throw new UnsupportedOperationException();
@@ -183,6 +184,7 @@ class LivelinessTest {
     @Test
     void brokenEmbeddingDoesNotBlockSending() {
         LlmClient broken = new LlmClient() {
+            @Override public String modelName() { return "test-model"; }
             @Override
             public ChatResponse chat(String systemPrompt, List<Message> history, JsonNode tools) {
                 throw new UnsupportedOperationException();
