@@ -34,6 +34,7 @@ import ru.rainedev.raine.tools.TelegramTools;
 import ru.rainedev.raine.tools.WebSearch;
 import ru.rainedev.raine.vision.TelegramMedia;
 import ru.rainedev.raine.vision.Vision;
+import ru.rainedev.raine.tiktok.TikTok;
 
 /** Связывает Telegram, промпты и цикл обработки в одно живое целое. */
 public final class RaineApp implements AutoCloseable {
@@ -515,7 +516,16 @@ public final class RaineApp implements AutoCloseable {
         final Toolbox scrollBox = browserBox;
         final ru.rainedev.raine.tiktok.TikTokLimits limitsRef = tiktokLimits;
         if (scrollBox != null && limitsRef != null) {
-            spontaneity.tiktok(scrollBox, () -> !limitsRef.coolingDown(),
+            java.util.function.BooleanSupplier tiktokLoggedIn = () -> {
+                try {
+                    return browser.onPage(TikTok::loggedIn);
+                } catch (RuntimeException e) {
+                    log.debug("TikTok login check failed: {}", e.getMessage());
+                    return false;
+                }
+            };
+            spontaneity.tiktok(scrollBox,
+                    () -> !limitsRef.coolingDown() && tiktokLoggedIn.getAsBoolean(),
                     limitsRef::usage, limitsRef::sessionEnded);
         }
         // порыв «посидеть в сети» — без TikTok и без сценария: куда идти, она

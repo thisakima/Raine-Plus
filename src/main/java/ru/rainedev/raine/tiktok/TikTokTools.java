@@ -103,8 +103,21 @@ public final class TikTokTools {
                 .build(args -> {
                     limits.touchFirstUse();
                     Scene scene = capture(page -> {
-                        TikTok.openFeed(page);
-                        return "Opened your For-You feed.";
+                        log.info("Opening TikTok feed...");
+                        page.navigate(TikTok.FEED_URL);
+                        try {
+                            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+                            page.waitForLoadState(LoadState.NETWORKIDLE);
+                        } catch (RuntimeException e) {
+                            log.warn("Feed load timeout: {}", e.getMessage());
+                        }
+                        // Check if we're actually logged in
+                        if (!TikTok.loggedIn(page)) {
+                            log.warn("Opened feed but not logged in!");
+                            return "Opened feed page but you're NOT logged into TikTok. You need to log in first using the headed browser (run 'tiktok-login' command).";
+                        }
+                        log.info("TikTok feed opened successfully, logged in: true");
+                        return "Opened your For-You feed. You're logged in.";
                     });
                     return render(scene, true);
                 });
@@ -114,6 +127,9 @@ public final class TikTokTools {
         return Tool.named("tiktok_next")
                 .describedAs("Swipe to the next video in the feed and see what it is.")
                 .build(args -> render(capture(page -> {
+                    if (!TikTok.loggedIn(page)) {
+                        return "Not logged into TikTok — can't swipe. Log in first.";
+                    }
                     TikTok.next(page, input);
                     return "Moved to the next video.";
                 }), true));
@@ -137,12 +153,16 @@ public final class TikTokTools {
                 .build(args -> {
                     int count = Math.max(1, Math.min(args.path("count").asInt(5), 10));
                     limits.touchFirstUse();
-                    // просто смотрит ленту: human-like паузы, случайные микро-действия
-                    return capture(page -> {
+                    Scene scene = capture(page -> {
+                        if (!TikTok.loggedIn(page)) {
+                            log.warn("watchFeed called but not logged in!");
+                            return "You're not logged into TikTok. Log in first with 'tiktok-login' command.";
+                        }
                         input.watchVideoFeed(page, count);
                         return "Watched " + count + " videos in your feed — just chilling, "
                                 + "moving like a real person does. Current video:";
-                    }).note() + "\n" + render(capture(page -> "now on:"), true);
+                    });
+                    return render(scene, true);
                 });
     }
 
@@ -193,6 +213,9 @@ public final class TikTokTools {
                     }
                     boolean[] done = {false};
                     Scene scene = capture(page -> {
+                        if (!TikTok.loggedIn(page)) {
+                            return "Not logged into TikTok — can't like. Log in first.";
+                        }
                         done[0] = TikTok.like(page, input);
                         return done[0]
                                 ? "Liked it."
@@ -222,6 +245,9 @@ public final class TikTokTools {
                     }
                     boolean[] done = {false};
                     Scene scene = capture(page -> {
+                        if (!TikTok.loggedIn(page)) {
+                            return "Not logged into TikTok — can't comment. Log in first.";
+                        }
                         done[0] = TikTok.comment(page, input, text);
                         return done[0]
                                 ? "Posted your comment."
@@ -244,6 +270,9 @@ public final class TikTokTools {
                     }
                     boolean[] done = {false};
                     Scene scene = capture(page -> {
+                        if (!TikTok.loggedIn(page)) {
+                            return "Not logged into TikTok — can't repost. Log in first.";
+                        }
                         done[0] = TikTok.repost(page, input);
                         return done[0]
                                 ? "Reposted it."
@@ -272,6 +301,9 @@ public final class TikTokTools {
                     boolean more = args.path("more").asBoolean(false);
                     AtomicReference<List<TikTok.Comment>> read = new AtomicReference<>(List.of());
                     Scene scene = capture(page -> {
+                        if (!TikTok.loggedIn(page)) {
+                            return "Not logged into TikTok — can't read comments. Log in first.";
+                        }
                         if (more) {
                             TikTok.scrollComments(page, input, 700 + random.nextInt(700));
                             settle(page);
