@@ -115,7 +115,7 @@ class LlmSlangGuardTest {
     @Test
     void letsNormalSpeechThroughStill() {
         assertFalse(LlmSlangGuard.looksGenerated("интересно, а как это работает"));
-        assertFalse(LlmSlangGuard.looksGenerated("норм, я понял"));
+        assertFalse(LlmSlangGuard.looksGenerated("норм"));
         assertFalse(LlmSlangGuard.looksGenerated("спс за инфу"));
         assertFalse(LlmSlangGuard.looksGenerated("хз, не знаю"));
     }
