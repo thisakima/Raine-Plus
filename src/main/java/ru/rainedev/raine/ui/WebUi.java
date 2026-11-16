@@ -174,6 +174,7 @@ public final class WebUi implements AutoCloseable {
         server.createContext("/api/schedule", ui::schedule);
         server.createContext("/api/stats", ui::stats);
         server.createContext("/api/user-photo/", ui::userPhoto);
+        server.createContext("/api/my-photo", ui::myPhoto);
 
         // Static file handler for gallery images
         server.createContext("/gallery/", exchange -> {
@@ -864,6 +865,38 @@ public final class WebUi implements AutoCloseable {
         }
     }
 
+    private void myPhoto(HttpExchange ex) throws IOException {
+        requests.incrementAndGet();
+        if (telegram == null) {
+            ex.sendResponseHeaders(503, -1);
+            return;
+        }
+        try {
+            long myId = telegram.myId();
+            Optional<TdApi.ChatPhoto> photo = telegram.userPhoto(myId);
+            if (photo.isEmpty() || photo.get().sizes == null || photo.get().sizes.length == 0) {
+                ex.sendResponseHeaders(404, -1);
+                return;
+            }
+            TdApi.PhotoSize largest = photo.get().sizes[photo.get().sizes.length - 1];
+            Path file = telegram.download(largest.photo.id).orElse(null);
+            if (file == null || !Files.exists(file)) {
+                ex.sendResponseHeaders(404, -1);
+                return;
+            }
+            byte[] bytes = Files.readAllBytes(file);
+            ex.getResponseHeaders().set("Content-Type", "image/jpeg");
+            ex.getResponseHeaders().set("Cache-Control", "public, max-age=3600");
+            ex.sendResponseHeaders(200, bytes.length);
+            try (OutputStream out = ex.getResponseBody()) {
+                out.write(bytes);
+            }
+        } catch (RuntimeException e) {
+            log.debug("Не удалось получить своё фото: {}", e.getMessage());
+            ex.sendResponseHeaders(500, -1);
+        }
+    }
+
     // ───────────────────── helpers ─────────────────────
 
     private record TailResult(java.util.List<String> lines, long size, long cursor) {}
@@ -1537,7 +1570,7 @@ public final class WebUi implements AutoCloseable {
                     </div>
                     <div class="avatar-wrapper">
                       <div class="avatar-glow"></div>
-                      <img class="avatar-img" id="avatar-img" src="/gallery/1794462886238.webp" alt="Yukiko" onerror="this.style.display='none'; this.onerror=null; console.warn('Avatar failed to load');">
+                      <img class="avatar-img" id="avatar-img" src="" alt="Yukiko" style="display:none;">
                     </div>
                   </div>
                 </section>
@@ -1699,15 +1732,22 @@ public final class WebUi implements AutoCloseable {
                 $('#mood-tag').textContent = 'загрузка…';
                 $('#activity-text').textContent = 'загрузка…';
                 try {
-                  const r = await fetch('/api/mood');
-                  const m = await r.json();
+                  const [moodR, photoR] = await Promise.all([
+                    fetch('/api/mood').then(r => r.json()),
+                    fetch('/api/my-photo').then(r => r.blob()).catch(() => null)
+                  ]);
+                  const m = moodR;
                   $('#mood-tag').textContent = m.moodTag || 'нежное';
                   $('#activity-text').textContent = m.activity || 'Дома: гитара, игры, аниме, ночные разговоры';
                   $('#metric-lastmsg').textContent = m.lastMessageAgo || '23 мин';
                   $('#metric-yourmood').textContent = m.yourMood || 'ласковый';
                   $('#metric-model').textContent = m.model || 'ds';
-                  // Update model status dot tooltip
                   updateStatusLED('led-model', true, m.model || 'ds');
+                  if (photoR) {
+                    const img = $('#avatar-img');
+                    img.src = URL.createObjectURL(photoR);
+                    img.style.display = '';
+                  }
                 } catch (e) { console.warn('Character load failed', e); }
               }
               loadCharacter();

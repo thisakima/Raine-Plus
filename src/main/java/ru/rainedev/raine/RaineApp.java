@@ -529,6 +529,7 @@ public final class RaineApp implements AutoCloseable {
         // подключаем веб-панель ко всем компонентам для дашборда
         if (webUi != null) {
             webUi.loop(loop)
+                    .delivery(delivery)
                     .relationships(relationships)
                     .diary(diary)
                     .workingMemory(workingMemory)
