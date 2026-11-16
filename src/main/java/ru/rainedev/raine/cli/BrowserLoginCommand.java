@@ -154,7 +154,7 @@ public final class BrowserLoginCommand {
      * проверить, что сессия перенеслась.
      */
     static Config.Browser quiet(Config.Browser b) {
-        return new Config.Browser(true, true, b.engine(), b.profileDir(), b.locale(), b.timezone(),
+        return new Config.Browser(true, true, b.engine(), b.channel(), b.profileDir(), b.locale(), b.timezone(),
                 b.viewportWidth(), b.viewportHeight(), b.userAgent(), b.loginBinary());
     }
 

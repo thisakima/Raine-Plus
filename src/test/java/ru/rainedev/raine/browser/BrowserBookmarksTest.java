@@ -23,7 +23,7 @@ class BrowserBookmarksTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static BrowserTools tools(Path dir) {
-        Config.Browser config = new Config.Browser(true, true, "firefox", dir, "ru-RU",
+        Config.Browser config = new Config.Browser(true, true, "firefox", "firefox", dir, "ru-RU",
                 "Europe/Moscow", 1280, 800, "", "");
         return new BrowserTools(new Browser(config), new HumanInput(new Random(1)), null,
                 dir.resolve("bookmarks.md"), dir.resolve("gallery"));

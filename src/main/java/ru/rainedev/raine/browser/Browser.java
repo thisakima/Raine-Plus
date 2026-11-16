@@ -554,6 +554,10 @@ public final class Browser implements AutoCloseable {
                 .setHeadless(headless)
                 .setIgnoreHTTPSErrors(true)
                 .setViewportSize(config.viewportWidth(), config.viewportHeight());
+        String channel = config.channel();
+        if (channel != null && !channel.isBlank()) {
+            options.setChannel(channel);
+        }
         if ("chromium".equals(engine)) {
             options.setArgs(CHROMIUM_ARGS);
         } else if ("firefox".equals(engine)) {

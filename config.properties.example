@@ -249,8 +249,12 @@ browser_headless=false
 # движок: firefox (по умолчанию, без приметок Chromium), chromium или webkit
 browser_engine=firefox
 
+# канал браузера: для Firefox — firefox (stable), beta, nightly; для Chromium — stable, beta, dev, canary
+# Firefox stable профиль несовместим с Nightly — поэтому у каждого канала свой подкаталог профиля
+browser_channel=firefox
+
 # постоянный профиль браузера: в нём остаются входы на сайты, включая TikTok.
-# подкаталог под каждый движок (firefox/, chromium/) — профили несовместимы
+# подкаталог под каждый движок и канал (firefox/, firefox-nightly/, chromium/, ...) — профили несовместимы
 browser_profile_dir=data/browser/profile
 
 # язык/регион и часовой пояс браузера — должны совпадать с «местом жительства»

@@ -24,7 +24,7 @@ class CommentLearningTest {
     private static TikTokTools tools(Path dir, PhraseCollector collector) {
         Config.TikTok config = new Config.TikTok(true, ME, dir.resolve("tiktok"), 12,
                 0.35, 0.06, 0.04, 60, 8, 5, 10, 90, 3);
-        Browser browser = new Browser(new Config.Browser(true, true, "firefox", dir, "ru-RU",
+        Browser browser = new Browser(new Config.Browser(true, true, "firefox", "firefox", dir, "ru-RU",
                 "Europe/Moscow", 1280, 800, "", ""));
         TikTokTools tools = new TikTokTools(browser, new HumanInput(new Random(1)), null, config,
                 new TikTokLimits(config, dir.resolve("limits.properties")), new Random(1));
@@ -73,7 +73,7 @@ class CommentLearningTest {
     void withoutACollectorReadingStillWorks(@TempDir Path dir) {
         Config.TikTok config = new Config.TikTok(true, ME, dir.resolve("tiktok"), 12,
                 0.35, 0.06, 0.04, 60, 8, 5, 10, 90, 3);
-        Browser browser = new Browser(new Config.Browser(true, true, "firefox", dir, "ru-RU",
+        Browser browser = new Browser(new Config.Browser(true, true, "firefox", "firefox", dir, "ru-RU",
                 "Europe/Moscow", 1280, 800, "", ""));
         TikTokTools tools = new TikTokTools(browser, new HumanInput(new Random(1)), null, config,
                 new TikTokLimits(config, dir.resolve("limits.properties")), new Random(1));

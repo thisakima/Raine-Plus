@@ -171,7 +171,7 @@ public record Config(
      *                    это патченая nightly-сборка, и Google с TikTok не пускают
      *                    в аккаунт через неё («браузер может быть небезопасным»).
      */
-    public record Browser(boolean enabled, boolean headless, String engine, Path profileDir, String locale,
+    public record Browser(boolean enabled, boolean headless, String engine, String channel, Path profileDir, String locale,
                           String timezone, int viewportWidth, int viewportHeight, String userAgent,
                           String loginBinary) {
 
@@ -181,7 +181,7 @@ public record Config(
          * (проверено), и наоборот — поэтому у каждого свой подкаталог.
          */
         public Path profileFor() {
-            return profileDir.resolve(engineName());
+            return profileDir.resolve(engineName() + (channel != null && !channel.equals("firefox") ? "-" + channel : ""));
         }
 
         /**
@@ -381,9 +381,11 @@ public record Config(
                                 "браузер без окна; для TikTok лучше false и запустить под Xvfb"),
                         s.get("browser_engine", "firefox",
                                 "движок: firefox (по умолчанию), chromium или webkit"),
+                        s.get("browser_channel", "firefox",
+                                "канал Firefox: firefox (stable), beta, nightly; для Chromium: stable, beta, dev, canary"),
                         s.path("browser_profile_dir", "data/browser/profile",
                                 "постоянный профиль браузера: в нём остаются входы на сайты; "
-                                        + "подкаталог на каждый движок"),
+                                        + "подкаталог на каждый движок и канал"),
                         s.get("browser_locale", "ru-RU", "язык/регион браузера"),
                         s.get("browser_timezone", "Europe/Moscow", "часовой пояс браузера"),
                         s.integer("browser_viewport_width", 1280, "ширина окна браузера"),
