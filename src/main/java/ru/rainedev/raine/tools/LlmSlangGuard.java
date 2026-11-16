@@ -40,7 +40,34 @@ public final class LlmSlangGuard {
             Pattern.compile("(?iu)тянет\\s+на\\s+(название|сценари|фильм)"),
             // «X — это когда …»: определение через тире. Без тире не трогаем —
             // «это когда» встречается и в обычной речи.
-            Pattern.compile("(?iu)\\s*[—–]\\s*это\\s+когда"));
+            Pattern.compile("(?iu)\\s*[—–]\\s*это\\s+когда"),
+            // DeepSeek-specific patterns
+            Pattern.compile("(?iu)интересн\\p{L}*\\s+факт"),
+            Pattern.compile("(?iu)стоит\\s+отмет"),
+            Pattern.compile("(?iu)не\\s+стоит\\s+забыв"),
+            Pattern.compile("(?iu)как\\s+ни\\s+странно"),
+            Pattern.compile("(?iu)во[-–]?\\s*первых"),
+            Pattern.compile("(?iu)во[-–]?\\s*вторых"),
+            Pattern.compile("(?iu)с\\s+одной\\s+стороны"),
+            Pattern.compile("(?iu)с\\s+другой\\s+стороны"),
+            Pattern.compile("(?iu)в\\s+контекст\\p{L}*"),
+            Pattern.compile("(?iu)позволяет\\s+"),
+            Pattern.compile("(?iu)обеспечивает\\s+"),
+            Pattern.compile("(?iu)способствует\\s+"),
+            Pattern.compile("(?iu)разумеется"),
+            Pattern.compile("(?iu)следовательно"),
+            Pattern.compile("(?iu)таким\\s+образом"),
+            Pattern.compile("(?iu)в\\s+целом"),
+            Pattern.compile("(?iu)в\\s+основном"),
+            Pattern.compile("(?iu)как\\s+правило"),
+            Pattern.compile("(?iu)подробн\\p{L}*\\s+анализ"),
+            Pattern.compile("(?iu)детальн\\p{L}*\\s+разбор"),
+            Pattern.compile("(?iu)комплексн\\p{L}*\\s+подход"),
+            Pattern.compile("(?iu)это\\s+напоминает"),
+            Pattern.compile("(?iu)название\\s+фильм\\p{L}*"),
+            Pattern.compile("(?iu)я\\s+понимаю"),
+            Pattern.compile("(?iu)я\\s+слышу\\s+тебя"),
+            Pattern.compile("(?iu)спасибо\\s+за\\s+вопрос"));
 
     private final String rejection;
 

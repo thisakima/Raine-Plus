@@ -82,4 +82,41 @@ class LlmSlangGuardTest {
         LlmSlangGuard guard = new LlmSlangGuard("переиграй");
         guard.check("норм, дома сижу");   // не должно бросить
     }
+
+    @Test
+    void catchesDeepSeekPatterns() {
+        assertTrue(LlmSlangGuard.looksGenerated("интересный факт, это работает"));
+        assertTrue(LlmSlangGuard.looksGenerated("стоит отметить, что..."));
+        assertTrue(LlmSlangGuard.looksGenerated("не стоит забывать об этом"));
+        assertTrue(LlmSlangGuard.looksGenerated("как ни странно, получилось"));
+        assertTrue(LlmSlangGuard.looksGenerated("во-первых, это важно"));
+        assertTrue(LlmSlangGuard.looksGenerated("во вторых, я согласен"));
+        assertTrue(LlmSlangGuard.looksGenerated("с одной стороны да, с другой стороны нет"));
+        assertTrue(LlmSlangGuard.looksGenerated("в контексте нашей беседы"));
+        assertTrue(LlmSlangGuard.looksGenerated("это позволяет сделать больше"));
+        assertTrue(LlmSlangGuard.looksGenerated("обеспечивает качественный результат"));
+        assertTrue(LlmSlangGuard.looksGenerated("способствует развитию"));
+        assertTrue(LlmSlangGuard.looksGenerated("разумеется, это так"));
+        assertTrue(LlmSlangGuard.looksGenerated("следовательно, вывод таков"));
+        assertTrue(LlmSlangGuard.looksGenerated("таким образом, мы пришли"));
+        assertTrue(LlmSlangGuard.looksGenerated("в целом нормально"));
+        assertTrue(LlmSlangGuard.looksGenerated("в основном так"));
+        assertTrue(LlmSlangGuard.looksGenerated("как правило бывает"));
+        assertTrue(LlmSlangGuard.looksGenerated("подробный анализ ситуации"));
+        assertTrue(LlmSlangGuard.looksGenerated("детальный разбор проблемы"));
+        assertTrue(LlmSlangGuard.looksGenerated("комплексный подход нужен"));
+        assertTrue(LlmSlangGuard.looksGenerated("это напоминает фильм"));
+        assertTrue(LlmSlangGuard.looksGenerated("название фильма какое-то"));
+        assertTrue(LlmSlangGuard.looksGenerated("я понимаю тебя"));
+        assertTrue(LlmSlangGuard.looksGenerated("я слышу тебя"));
+        assertTrue(LlmSlangGuard.looksGenerated("спасибо за вопрос"));
+    }
+
+    @Test
+    void letsNormalSpeechThroughStill() {
+        assertFalse(LlmSlangGuard.looksGenerated("интересно, а как это работает"));
+        assertFalse(LlmSlangGuard.looksGenerated("норм, я понял"));
+        assertFalse(LlmSlangGuard.looksGenerated("спс за инфу"));
+        assertFalse(LlmSlangGuard.looksGenerated("хз, не знаю"));
+    }
 }
