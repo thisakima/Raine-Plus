@@ -6,6 +6,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.BoundingBox;
+import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.Cookie;
 import java.io.IOException;
 import java.net.URI;
@@ -400,6 +401,24 @@ public final class TikTok {
 
     public static void openFeed(Page page) {
         page.navigate(FEED_URL);
+        try {
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            page.waitForLoadState(LoadState.NETWORKIDLE, new Page.WaitForLoadStateOptions().setTimeout(30_000));
+        } catch (RuntimeException e) {
+            log.warn("Feed load timeout: {}", e.getMessage());
+        }
+        // Check for "page unavailable" error page
+        if (isErrorPage(page)) {
+            throw new RuntimeException("TikTok returned error page (unavailable/rate limited)");
+        }
+    }
+
+    static boolean isErrorPage(Page page) {
+        String content = page.content();
+        return content.contains("страница недоступна") || content.contains("page unavailable") ||
+               content.contains("попробуйте позже") || content.contains("try again later") ||
+               content.contains("Too Many Requests") || content.contains("429") ||
+               content.contains("captcha") || content.contains("security check");
     }
 
     public static void search(Page page, String query) {

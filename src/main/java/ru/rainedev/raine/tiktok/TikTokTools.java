@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.rainedev.raine.browser.Browser;
 import ru.rainedev.raine.browser.HumanInput;
+import ru.rainedev.raine.cli.BrowserLoginCommand;
 import ru.rainedev.raine.config.Config;
 import ru.rainedev.raine.core.Tool;
 import ru.rainedev.raine.vision.VideoFrames;
@@ -102,24 +103,35 @@ public final class TikTokTools {
                 .describedAs("Open your TikTok For-You feed to start scrolling.")
                 .build(args -> {
                     limits.touchFirstUse();
-                    Scene scene = capture(page -> {
-                        log.info("Opening TikTok feed...");
-                        page.navigate(TikTok.FEED_URL);
-                        try {
-                            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-                            page.waitForLoadState(LoadState.NETWORKIDLE);
-                        } catch (RuntimeException e) {
-                            log.warn("Feed load timeout: {}", e.getMessage());
+                    // Retry up to 2 times on "page unavailable" errors
+                    for (int attempt = 1; attempt <= 2; attempt++) {
+                        final int currentAttempt = attempt;
+                        Scene scene = capture(page -> {
+                            log.info("Opening TikTok feed (attempt {}/2)...", currentAttempt);
+                            try {
+                                page.navigate(TikTok.FEED_URL);
+                                page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+                                page.waitForLoadState(LoadState.NETWORKIDLE, new Page.WaitForLoadStateOptions().setTimeout(30_000));
+                            } catch (RuntimeException e) {
+                                log.warn("Feed load timeout: {}", e.getMessage());
+                            }
+                            if (TikTok.isErrorPage(page)) {
+                                throw new RuntimeException("TikTok returned error page (unavailable/rate limited)");
+                            }
+                            if (!TikTok.loggedIn(page)) {
+                                log.warn("Opened feed but not logged in!");
+                                return "Opened feed page but you're NOT logged into TikTok. You need to log in first using the headed browser (run 'tiktok-login' command).";
+                            }
+                            log.info("TikTok feed opened successfully, logged in: true");
+                            return "Opened your For-You feed. You're logged in.";
+                        });
+                        if (!scene.note().contains("error page") && !scene.note().contains("unavailable")) {
+                            return render(scene, true);
                         }
-                        // Check if we're actually logged in
-                        if (!TikTok.loggedIn(page)) {
-                            log.warn("Opened feed but not logged in!");
-                            return "Opened feed page but you're NOT logged into TikTok. You need to log in first using the headed browser (run 'tiktok-login' command).";
-                        }
-                        log.info("TikTok feed opened successfully, logged in: true");
-                        return "Opened your For-You feed. You're logged in.";
-                    });
-                    return render(scene, true);
+                        log.warn("Got error page on attempt {}, waiting before retry...", currentAttempt);
+                        BrowserLoginCommand.sleep(5000 + random.nextInt(5000));
+                    }
+                    return "TikTok feed unavailable after retries. Possible rate limit or IP block. Try again later or check login.";
                 });
     }
 
