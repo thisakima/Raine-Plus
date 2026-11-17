@@ -1419,13 +1419,19 @@ public final class WebUi implements AutoCloseable {
               .rel-avatar-large { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid var(--pink); box-shadow: 0 0 20px var(--glow-pink); margin-right: 16px; flex-shrink: 0; }
               .card-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
               /* ===== PAGE 2: CONTROL PANEL ===== */
-              .equalizer { display: flex; align-items: flex-end; gap: 16px; height: 280px; padding: 20px 0; }
-              .eq-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 12px; height: 100%; position: relative; }
-              .eq-track { width: 100%; height: 100%; background: rgba(255,255,255,0.05); border-radius: 12px; position: relative; overflow: hidden; }
-              .eq-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 12px 12px 0 0; transition: height 0.8s cubic-bezier(0.23, 1, 0.32, 1), background 0.3s; }
-              .eq-fill::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); border-radius: 12px 12px 0 0; }
-              .eq-label { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-              .eq-value { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 20px; }
+              .equalizer { display: flex; align-items: flex-end; gap: 20px; height: 320px; padding: 32px 16px; background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.05) 100%); border-radius: 20px; position: relative; overflow: hidden; }
+              .equalizer::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 100%, rgba(255,107,157,0.1) 0%, transparent 60%); pointer-events: none; }
+              .eq-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; height: 100%; position: relative; min-width: 60px; }
+              .eq-track { width: 100%; height: 100%; background: rgba(255,255,255,0.03); border-radius: 16px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }
+              .eq-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 16px 16px 0 0; transition: height 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s; }
+              .eq-fill::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 40%, rgba(0,0,0,0.2) 100%); border-radius: inherit; }
+              .eq-fill::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%); border-radius: 16px 16px 0 0; box-shadow: 0 -2px 12px currentColor; filter: blur(4px); }
+              .eq-glow { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); width: 80%; height: 40px; filter: blur(20px); opacity: 0.5; pointer-events: none; transition: opacity 0.3s; }
+              .eq-bar:hover .eq-glow { opacity: 0.8; }
+              .eq-label { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; text-align: center; line-height: 1.3; opacity: 0.85; }
+              .eq-value { font-family: 'Montserrat', sans-serif; font-weight: 900; font-size: 24px; line-height: 1; text-shadow: 0 2px 8px currentColor; }
+              .eq-indicator { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 12px currentColor; opacity: 0.8; animation: pulse 2s ease-in-out infinite; }
+              @keyframes pulse { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
               .communication-card { margin-top: 24px; }
               .comm-text { font-size: 15px; line-height: 1.8; color: var(--text-muted); }
               .comm-text strong { color: var(--text); }
@@ -1489,17 +1495,169 @@ public final class WebUi implements AutoCloseable {
               .legend-item.inactive { opacity: 0.4; }
               .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
               /* Relationships */
-              .relationships-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+              .relationships-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
               @media (max-width: 700px) { .relationships-grid { grid-template-columns: 1fr; } }
-              .rel-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px; transition: all 0.3s ease; cursor: pointer; }
+              .rel-card { 
+                background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%); 
+                border: 1px solid rgba(255,255,255,0.08); 
+                border-radius: 20px; 
+                padding: 20px; 
+                transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); 
+                cursor: pointer;
+                position: relative;
+                overflow: hidden;
+              }
+              .rel-card::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(circle at 50% 0%, var(--glow-pink) 0%, transparent 50%);
+                opacity: 0;
+                transition: opacity 0.4s;
+                pointer-events: none;
+              }
               .rel-card:hover { 
-                border-color: var(--border-focus); 
-                transform: translateY(-4px); 
-                box-shadow: var(--shadow-medium); 
-            }
-              .rel-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card-border); flex-shrink: 0; }
-              .rel-avatar-large { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid var(--pink); box-shadow: 0 0 20px var(--glow-pink); margin-right: 16px; flex-shrink: 0; }
-              .card-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+                border-color: rgba(255,107,157,0.4); 
+                transform: translateY(-6px); 
+                box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 60px rgba(255,107,157,0.15);
+              }
+              .rel-card:hover::before { opacity: 0.15; }
+              .rel-card-header {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                margin-bottom: 16px;
+                position: relative;
+                z-index: 1;
+              }
+              .rel-avatar-wrapper {
+                position: relative;
+                flex-shrink: 0;
+              }
+              .rel-avatar { 
+                width: 56px; 
+                height: 56px; 
+                border-radius: 50%; 
+                object-fit: cover; 
+                border: 3px solid rgba(255,255,255,0.1);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                transition: all 0.3s;
+              }
+              .rel-card:hover .rel-avatar {
+                border-color: var(--pink);
+                box-shadow: 0 4px 20px rgba(255,107,157,0.4);
+              }
+              .rel-avatar-ring {
+                position: absolute;
+                inset: -4px;
+                border-radius: 50%;
+                background: conic-gradient(from 0deg, var(--pink), var(--teal), var(--yellow), var(--pink));
+                opacity: 0;
+                transition: opacity 0.3s;
+                z-index: -1;
+                filter: blur(8px);
+              }
+              .rel-card:hover .rel-avatar-ring { opacity: 0.6; }
+              .rel-info { flex: 1; min-width: 0; }
+              .rel-name { 
+                font-family: 'Montserrat', sans-serif; 
+                font-weight: 700; 
+                font-size: 16px; 
+                color: var(--text);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+              .rel-userid { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+              .rel-status {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .rel-status.cold {
+                background: rgba(255,125,125,0.15);
+                color: #ff7d7d;
+                border: 1px solid rgba(255,125,125,0.3);
+              }
+              .rel-status.warm {
+                background: rgba(107,210,138,0.15);
+                color: #6bd28a;
+                border: 1px solid rgba(107,210,138,0.3);
+              }
+              .rel-metrics {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 12px;
+                margin-top: 16px;
+                padding-top: 16px;
+                border-top: 1px solid rgba(255,255,255,0.06);
+              }
+              .rel-metric { text-align: center; }
+              .rel-metric-value { 
+                font-family: 'Montserrat', sans-serif; 
+                font-weight: 800; 
+                font-size: 18px; 
+                color: var(--text);
+              }
+              .rel-metric-label { 
+                font-size: 10px; 
+                color: var(--text-muted); 
+                text-transform: uppercase; 
+                letter-spacing: 0.5px; 
+                margin-top: 4px;
+              }
+              .intimacy-bar { 
+                height: 8px; 
+                background: rgba(255,255,255,0.06); 
+                border-radius: 4px; 
+                overflow: hidden; 
+                margin-top: 8px;
+                position: relative;
+              }
+              .intimacy-fill { 
+                height: 100%; 
+                border-radius: 4px; 
+                transition: width 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+                position: relative;
+              }
+              .intimacy-fill::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+                animation: shimmer 2s infinite;
+              }
+              .intimacy-fill.high { background: linear-gradient(90deg, #6bd28a, #4ecdc4); box-shadow: 0 0 12px rgba(107,210,138,0.5); }
+              .intimacy-fill.med { background: linear-gradient(90deg, #f1c27a, #ff8c42); box-shadow: 0 0 12px rgba(241,194,122,0.5); }
+              .intimacy-fill.low { background: linear-gradient(90deg, #ff7d7d, #ff6b9d); box-shadow: 0 0 12px rgba(255,125,125,0.5); }
+              .rel-notes { margin-top: 16px; }
+              .rel-notes-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+              .notes-list { display: flex; flex-direction: column; gap: 6px; }
+              .note-item { 
+                background: rgba(255,255,255,0.03); 
+                border: 1px solid rgba(255,255,255,0.06); 
+                border-radius: 8px; 
+                padding: 8px 12px; 
+                font-size: 12px; 
+                color: var(--text-muted);
+                line-height: 1.5;
+              }
+              .rel-avatar-large { 
+                width: 100px; 
+                height: 100px; 
+                border-radius: 50%; 
+                object-fit: cover; 
+                border: 4px solid rgba(255,107,157,0.3); 
+                box-shadow: 0 8px 32px rgba(255,107,157,0.4);
+                margin-right: 20px; 
+                flex-shrink: 0;
+              }
               .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
               .badge.ok { background: rgba(107, 210, 138, 0.15); color: var(--ok); border: 1px solid rgba(107, 210, 138, 0.3); }
               .badge.warn { background: rgba(241, 194, 122, 0.15); color: var(--warn); border: 1px solid rgba(241, 194, 122, 0.3); }
@@ -1510,13 +1668,7 @@ public final class WebUi implements AutoCloseable {
               .field { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
               .field-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
               .field-value { color: var(--fg); font-size: 13px; margin-top: 2px; word-break: break-word; }
-              .notes-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-              .note-item { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
-              .intimacy-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
-              .intimacy-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-              .intimacy-fill.high { background: linear-gradient(90deg, var(--ok), var(--accent)); }
-              .intimacy-fill.med { background: linear-gradient(90deg, var(--warn), var(--accent2)); }
-              .intimacy-fill.low { background: linear-gradient(90deg, var(--err), var(--warn)); }
+              @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
               .loading { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
               .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
               @keyframes spin { to { transform: rotate(360deg); } }
@@ -1773,11 +1925,14 @@ public final class WebUi implements AutoCloseable {
                 const container = $('#equalizer');
                 container.innerHTML = EQ_CONFIG.map((eq, i) => {
                   const val = mood[eq.id] ?? 50;
-                  const delay = i * 80;
+                  const delay = i * 100;
                   return `
                     <div class="eq-bar" style="--delay: ${delay}ms;">
                       <div class="eq-track">
-                        <div class="eq-fill" style="--target-height: ${val}%; height: 0%; background: ${eq.color};"></div>
+                        <div class="eq-fill" style="--target-height: ${val}%; height: 0%; background: linear-gradient(180deg, ${eq.color}, ${eq.color}dd); color: ${eq.color};">
+                          <div class="eq-indicator" style="color: ${eq.color};"></div>
+                        </div>
+                        <div class="eq-glow" style="background: ${eq.color};"></div>
                       </div>
                       <div class="eq-label" style="color: ${eq.color};">${eq.label}</div>
                       <div class="eq-value" style="color: ${eq.color};">${val}</div>
@@ -1786,7 +1941,7 @@ public final class WebUi implements AutoCloseable {
                 requestAnimationFrame(() => {
                   $$('.eq-fill', container).forEach((el, i) => {
                     const target = el.style.getPropertyValue('--target-height');
-                    setTimeout(() => { el.style.height = target; }, i * 80 + 100);
+                    setTimeout(() => { el.style.height = target; }, i * 100 + 150);
                   });
                 });
               }
@@ -2021,7 +2176,7 @@ public final class WebUi implements AutoCloseable {
                 );
                 $('#rel-count').textContent = filtered.length;
                 if (!filtered.length) {
-                  container.innerHTML = '<div class="empty">Нет людей, подходящих под фильтр</div>';
+                  container.innerHTML = '<div class="empty" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">Нет людей, подходящих под фильтр</div>';
                   return;
                 }
                 container.innerHTML = filtered.map(p => {
@@ -2032,33 +2187,47 @@ public final class WebUi implements AutoCloseable {
                   const genderLabel = p.genderLabel || 'unknown';
                   const gender = p.gender || '';
                   const timeAgo = p.lastInteractionAgo
-                    ? (p.lastInteractionAgo < 60 ? p.lastInteractionAgo + ' мин назад' : p.lastInteractionAgo < 1440 ? Math.floor(p.lastInteractionAgo / 60) + ' ч назад' : Math.floor(p.lastInteractionAgo / 1440) + ' дн назад')
-                    : 'никогда';
+                    ? (p.lastInteractionAgo < 60 ? p.lastInteractionAgo + ' мин' : p.lastInteractionAgo < 1440 ? Math.floor(p.lastInteractionAgo / 60) + ' ч' : Math.floor(p.lastInteractionAgo / 1440) + ' дн')
+                    : '—';
                   const photoUrl = `/api/user-photo/${p.userId}`;
                   return `
-                    <div class="card rel-card" data-user-id="${p.userId}" style="cursor: pointer;">
-                      <div class="card-header">
-                        <img src="${photoUrl}" alt="" class="rel-avatar" onerror="this.style.display='none'" loading="lazy">
-                        <span class="card-title">${p.name || 'unknown'} <span class="muted">(${p.userId})</span></span>
-                        ${cold ? '<span class="badge err">холодно ' + p.coldUntilHours + 'ч</span>' : ''}
+                    <div class="rel-card" data-user-id="${p.userId}">
+                      <div class="rel-card-header">
+                        <div class="rel-avatar-wrapper">
+                          <div class="rel-avatar-ring"></div>
+                          <img src="${photoUrl}" alt="" class="rel-avatar" onerror="this.style.display='none'" loading="lazy">
+                        </div>
+                        <div class="rel-info">
+                          <div class="rel-name">${p.name || 'unknown'}</div>
+                          <div class="rel-userid">ID: ${p.userId}</div>
+                        </div>
+                        ${cold ? '<span class="rel-status cold">❄️ ' + p.coldUntilHours + 'ч</span>' : ''}
                       </div>
-                      <div class="row">
-                        <div class="field"><div class="field-label">Близость</div>
-                          <div class="field-value">${intimacy} — ${intLabel}</div>
-                          <div class="intimacy-bar"><div class="intimacy-fill ${intClass}" style="width:${intimacy}%"></div></div>
+                      <div class="intimacy-bar">
+                        <div class="intimacy-fill ${intClass}" style="width: ${intimacy}%"></div>
+                      </div>
+                      <div class="rel-metrics">
+                        <div class="rel-metric">
+                          <div class="rel-metric-value">${intimacy}</div>
+                          <div class="rel-metric-label">Близость</div>
                         </div>
-                        <div class="field"><div class="field-label">Пол</div>
-                          <div class="field-value">${genderLabel} ${gender ? '(' + gender + ')' : ''}</div>
+                        <div class="rel-metric">
+                          <div class="rel-metric-value">${gender === 'f' ? '♀' : gender === 'm' ? '♂' : '?'}</div>
+                          <div class="rel-metric-label">Пол</div>
                         </div>
-                        <div class="field"><div class="field-label">Последний контакт</div>
-                          <div class="field-value">${timeAgo}</div>
+                        <div class="rel-metric">
+                          <div class="rel-metric-value">${timeAgo}</div>
+                          <div class="rel-metric-label">Контакт</div>
                         </div>
                       </div>
                       ${p.notes && p.notes.length ? `
-                        <div class="notes-list">
-                          ${p.notes.map(n => '<div class="note-item">• ' + n.replace(/</g,'<') + '</div>').join('')}
+                        <div class="rel-notes">
+                          <div class="rel-notes-title">Заметки</div>
+                          <div class="notes-list">
+                            ${p.notes.slice(0, 3).map(n => '<div class="note-item">' + n.replace(/</g,'<').substring(0, 80) + (n.length > 80 ? '...' : '') + '</div>').join('')}
+                          </div>
                         </div>
-                      ` : '<div class="muted" style="margin-top:8px">нет заметок</div>'}
+                      ` : ''}
                     </div>`;
                 }).join('');
                 $$('.rel-card', container).forEach(card => {
