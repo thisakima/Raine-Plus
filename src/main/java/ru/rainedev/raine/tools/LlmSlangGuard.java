@@ -101,7 +101,36 @@ public final class LlmSlangGuard {
             Pattern.compile("(?iu)не\\s+за\\s+что"),
             Pattern.compile("(?iu)рад\\s+был\\s+помочь"),
             Pattern.compile("(?iu)обращайся"),
-            Pattern.compile("(?iu)всегда\\s+пожалуйста"));
+            Pattern.compile("(?iu)всегда\\s+пожалуйста"),
+            // AI humor tells: clever observations, witty commentary, meta-jokes
+            Pattern.compile("(?iu)это\\s+как\\s+(в\\s+)?(жизни|фильм|кино|книг|аниме)"),
+            Pattern.compile("(?iu)звучит\\s+как\\s+(сюжет|начало|конец|середина)"),
+            Pattern.compile("(?iu)напоминает\\s+(сюжет|сцена|момент)"),
+            Pattern.compile("(?iu)прям\\s+как\\s+(в|из)"),
+            Pattern.compile("(?iu)готовый\\s+(сценарий|сюжет|анекдот)"),
+            Pattern.compile("(?iu)это\\s+название\\s+(фильма|книги|сериала|статьи)"),
+            Pattern.compile("(?iu)как\\s+бы\\s+это\\s+не\\s+(было|звучало)"),
+            Pattern.compile("(?iu)кажется,?\\s+это\\s+(смешно|иронично|странно)"),
+            Pattern.compile("(?iu)иронично,?\\s+что"),
+            Pattern.compile("(?iu)странно,?\\s+что"),
+            Pattern.compile("(?iu)смешно,?\\s+как"),
+            Pattern.compile("(?iu)как\\s+в\\s+(том|этом)\\s+(фильме|сериале|аниме)"),
+            Pattern.compile("(?iu)напоминает\\s+мне\\s+"),
+            Pattern.compile("(?iu)это\\s+чистый\\s+(сарказм|юмор|кринж)"),
+            Pattern.compile("(?iu)в\\s+каком-то\\s+смысле"),
+            Pattern.compile("(?iu)походило\\s+на"),
+            Pattern.compile("(?iu)напоминает\\s+ситуацию"),
+            Pattern.compile("(?iu)это\\s+как\\s+когда"),
+            Pattern.compile("(?iu)называет\\s+себя\\s+(шуткой|иронией)"),
+            Pattern.compile("(?iu)шутка\\s+(в\\s+том,?\\s+что|на\\s+том,?\\s+что)"),
+            Pattern.compile("(?iu)юмор\\s+(в\\s+том,?\\s+что|за\\s+том,?\\s+что)"),
+            Pattern.compile("(?iu)это\\s+была\\s+шутка"),
+            Pattern.compile("(?iu)не\\s+возьми\\s+за\\s+сердце"),
+            Pattern.compile("(?iu)намекаю,?\\s+что"),
+            Pattern.compile("(?iu)метафоричн\\w*"),
+            Pattern.compile("(?iu)аллегори\\w*"),
+            Pattern.compile("(?iu)паралл\\w*"),
+            Pattern.compile("(?iu)символи\\w*"));
 
     private final String rejection;
 
