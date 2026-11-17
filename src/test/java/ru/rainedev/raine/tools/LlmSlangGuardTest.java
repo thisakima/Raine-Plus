@@ -144,4 +144,17 @@ class LlmSlangGuardTest {
         assertFalse(LlmSlangGuard.looksGenerated("я не могу"));
         assertFalse(LlmSlangGuard.looksGenerated("💀💀💀"));
     }
+
+    @Test
+    void letsFriendBanterThrough() {
+        assertFalse(LlmSlangGuard.looksGenerated("умри"));
+        assertFalse(LlmSlangGuard.looksGenerated("сдохни пожалуйста"));
+        assertFalse(LlmSlangGuard.looksGenerated("иди нахуй"));
+        assertFalse(LlmSlangGuard.looksGenerated("ты ебанутый"));
+        assertFalse(LlmSlangGuard.looksGenerated("ну ты и долбоёб"));
+        assertFalse(LlmSlangGuard.looksGenerated("убейся"));
+        assertFalse(LlmSlangGuard.looksGenerated("да похуй"));
+        assertFalse(LlmSlangGuard.looksGenerated("отвали"));
+        assertFalse(LlmSlangGuard.looksGenerated("я тебя люблю, придурок"));
+    }
 }
