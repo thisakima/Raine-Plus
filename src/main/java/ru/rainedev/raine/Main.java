@@ -52,6 +52,15 @@ public final class Main {
             return;
         }
 
+        // тест браузера автоматизации (как у неё) — без Telegram, без бота
+        if (args.length > 0 && args[0].equals("browser-test")) {
+            String url = args.length > 1
+                    ? String.join(" ", java.util.Arrays.asList(args).subList(1, args.length))
+                    : "";
+            ru.rainedev.raine.cli.BrowserTestCommand.run(config, url);
+            return;
+        }
+
         Init.init();
         // подробность TDLib: 1 — только ошибки, 3 — видно, что приходит с сервера
         Log.setLogMessageHandler(Integer.getInteger("raine.tdlib.verbosity", 1),
