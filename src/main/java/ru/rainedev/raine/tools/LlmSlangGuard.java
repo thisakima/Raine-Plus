@@ -130,7 +130,29 @@ public final class LlmSlangGuard {
             Pattern.compile("(?iu)метафоричн\\w*"),
             Pattern.compile("(?iu)аллегори\\w*"),
             Pattern.compile("(?iu)паралл\\w*"),
-            Pattern.compile("(?iu)символи\\w*"));
+            Pattern.compile("(?iu)символи\\w*"),
+            // AI humor patterns — catch fake jokes
+            Pattern.compile("(?iu)ахах.{0,10}это как в"),
+            Pattern.compile("(?iu)ахах.{0,10}мем"),
+            Pattern.compile("(?iu)прикольно.{0,10}а я вот"),
+            Pattern.compile("(?iu)ахах.{0,10}жиза"),
+            Pattern.compile("(?iu)ну ты даёшь"),
+            Pattern.compile("(?iu)лол.{0,10}это база"),
+            Pattern.compile("(?iu)ахах.{0,10}представь"),
+            Pattern.compile("(?iu)смешно.{0,10}особенно"),
+            Pattern.compile("(?iu)ахах.{0,10}я понимаю"),
+            Pattern.compile("(?iu)рофл.{0,10}а серьёзно"),
+            Pattern.compile("(?iu)ахах.{0,10}как в том"),
+            Pattern.compile("(?iu)звучит как.{0,10}сюжет"),
+            Pattern.compile("(?iu)звучит как.{0,10}название"),
+            Pattern.compile("(?iu)звучит как.{0,10}фильм"),
+            Pattern.compile("(?iu)звучит как.{0,10}книга"),
+            Pattern.compile("(?iu)это как.{0,10}в жизни"),
+            Pattern.compile("(?iu)ахах.{0,5}у меня тоже так"),
+            Pattern.compile("(?iu)ахах.{0,5}я тоже так"),
+            Pattern.compile("(?iu)смешно.{0,5}когда"),
+            Pattern.compile("(?iu)лол.{0,5}понимаю"),
+            Pattern.compile("(?iu)ахах.{0,5}понимаю"));
 
     private final String rejection;
 

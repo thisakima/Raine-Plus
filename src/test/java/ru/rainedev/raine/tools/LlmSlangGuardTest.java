@@ -119,4 +119,29 @@ class LlmSlangGuardTest {
         assertFalse(LlmSlangGuard.looksGenerated("спс за инфу"));
         assertFalse(LlmSlangGuard.looksGenerated("хз, не знаю"));
     }
+
+    @Test
+    void catchesAIHumorPatterns() {
+        assertTrue(LlmSlangGuard.looksGenerated("ахах это как в том меме где кот"));
+        assertTrue(LlmSlangGuard.looksGenerated("прикольно, а я вот вчера"));
+        assertTrue(LlmSlangGuard.looksGenerated("ахах жиза, у меня тоже"));
+        assertTrue(LlmSlangGuard.looksGenerated("ну ты даёшь"));
+        assertTrue(LlmSlangGuard.looksGenerated("лол, это база"));
+        assertTrue(LlmSlangGuard.looksGenerated("ахах представь если бы"));
+        assertTrue(LlmSlangGuard.looksGenerated("смешно, особенно когда"));
+        assertTrue(LlmSlangGuard.looksGenerated("ахах я понимаю о чём ты"));
+        assertTrue(LlmSlangGuard.looksGenerated("рофл, а серьёзно"));
+        assertTrue(LlmSlangGuard.looksGenerated("звучит как сюжет фильма"));
+        assertTrue(LlmSlangGuard.looksGenerated("звучит как название книги"));
+        assertTrue(LlmSlangGuard.looksGenerated("это как в жизни вообще"));
+    }
+
+    @Test
+    void letsHumanJokesThrough() {
+        assertFalse(LlmSlangGuard.looksGenerated("опять за дошиком?)"));
+        assertFalse(LlmSlangGuard.looksGenerated("ляг сдохни"));
+        assertFalse(LlmSlangGuard.looksGenerated("бляяя"));
+        assertFalse(LlmSlangGuard.looksGenerated("я не могу"));
+        assertFalse(LlmSlangGuard.looksGenerated("💀💀💀"));
+    }
 }
