@@ -637,6 +637,7 @@ public final class WebUi implements AutoCloseable {
                     if (time == null) time = "недавно";
 
                     var map = new ConcurrentHashMap<String, Object>();
+                    map.put("source", "diary");
                     map.put("time", time);
                     map.put("emotion", emotion);
                     map.put("text", truncate(body, 200));
@@ -652,6 +653,7 @@ public final class WebUi implements AutoCloseable {
                         if (line.isEmpty() || line.startsWith("-") || line.startsWith("•")) continue;
                         if (line.length() > 20) {
                             var map = new ConcurrentHashMap<String, Object>();
+                            map.put("source", "memory");
                             map.put("time", "сегодня");
                             map.put("emotion", "внимание");
                             map.put("text", truncate(line, 200));
@@ -670,6 +672,7 @@ public final class WebUi implements AutoCloseable {
                         if (line.startsWith("- ")) line = line.substring(2);
                         if (line.length() > 10) {
                             var map = new ConcurrentHashMap<String, Object>();
+                            map.put("source", "chat");
                             map.put("time", "в чате");
                             map.put("emotion", "живое");
                             map.put("text", truncate(line, 200));
@@ -1899,7 +1902,11 @@ public final class WebUi implements AutoCloseable {
               }
               function renderInterests(list) {
                 const container = $('#interests-list');
-                let maxValInterests = Math.max(...list.map(l => l.value));
+                if (!Array.isArray(list) || !list.length) {
+                  container.innerHTML = '<div class="muted" style="padding: 20px; text-align: center;">Пока интересов нет</div>';
+                  return;
+                }
+                const maxValInterests = Math.max(...list.map(l => l.value), 1);
                 container.innerHTML = list.map((item, i) => {
                   const pct = (item.value / maxValInterests) * 100;
                   return `
@@ -1994,125 +2001,6 @@ public final class WebUi implements AutoCloseable {
                       if (bar.dataset.series === key) bar.style.display = item.classList.contains('inactive') ? 'none' : '';
                     });
                   });
-                });
-              }
-
-              // ─── Page 3: Thoughts & Interests ───
-              async function loadThoughts() {
-                try {
-                  const [thoughtsR, interestsR] = await Promise.all([
-                    fetch('/api/thoughts').then(r => r.json()),
-                    fetch('/api/interests').then(r => r.json())
-                  ]);
-                  renderThoughts(thoughtsR);
-                  renderInterests(interestsR);
-                } catch (e) { console.warn('Thoughts load failed', e); }
-              }
-              function renderThoughts(list) {
-                const container = $('#thoughts-list');
-                container.innerHTML = list.map((t, i) => `
-                  <div class="thought-card" style="animation-delay: ${i * 80}ms;">
-                    <div class="thought-header">
-                      <span class="thought-time">${t.time}</span>
-                      <span class="thought-emotion" style="background: ${MOOD_COLORS[i % MOOD_COLORS.length]}22; color: ${MOOD_COLORS[i % MOOD_COLORS.length]}; border: 1px solid ${MOOD_COLORS[i % MOOD_COLORS.length]}44;">
-                        ${t.emotion}
-                      </span>
-                    </div>
-                    <p class="thought-text">${t.text}</p>
-                  </div>
-                `).join('');
-              }
-              function renderInterests(list) {
-                const container = $('#interests-list');
-                if (!list.length) {
-                    container.innerHTML = '<div class="muted" style="padding: 20px; text-align: center;">Пока интересов нет</div>';
-                    return;
-                }
-                let maxValInterests2 = Math.max(...list.map(l => l.value));
-                
-                // Группируем интересы по категориям
-                const categories = {
-                    '🎮 Игры': ['hades', 'гейм', 'игра', 'steam', 'рпг'],
-                    '🍵 Еда и напитки': ['чай', 'пуэр', 'улун', 'заварк', 'чайная', 'еда', 'кушать', 'обед', 'ужин', 'завтрак'],
-                    '🎸 Творчество': ['гитар', 'музык', 'аккорд', 'песен', 'рифф', 'рисов', 'арт', 'нарисов', 'скетч'],
-                    '📺 Медиа': ['аниме', 'манга', 'магическ', 'девчонк', 'сериал', 'фото', 'селфи', 'камер', 'объектив'],
-                    '🏠 Быт и бытовое': ['кот', 'кошк', 'киса', 'пушок', 'мур', 'сон', 'спать', 'просыпа', 'утро', 'подъём', 'еда', 'кушать', 'обед', 'ужин', 'завтрак'],
-                    '🏫 Учёба/Работа': ['колледж', 'учеб', 'пара', 'лекци', 'зачёт', 'экзамен', 'код', 'программ', 'java', 'python', 'бот', 'телеграм'],
-                    '🚶 Образ жизни': ['прогулк', 'ночн', 'улца', 'парк', 'свеж', 'друг', 'подруг', 'общ', 'встреч', 'звонок'],
-                    '🧠 Рефлексия': ['мысл', 'дума', 'размышл', 'идея', 'мысль']
-                };
-                
-                // Группируем интересы
-                const categorized = {};
-                const uncategorized = [];
-                
-                list.forEach(item => {
-                    let found = false;
-                    for (const [cat, keywords] of Object.entries(categories)) {
-                        if (keywords.some(kw => item.name.toLowerCase().includes(kw))) {
-                            if (!categorized[cat]) categorized[cat] = [];
-                            categorized[cat].push(item);
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) uncategorized.push(item);
-                });
-                
-                let maxValInterests3 = Math.max(...list.map(l => l.value));
-                
-                let html = '';
-                
-                // Рендерим по категориям
-                for (const [cat, items] of Object.entries(categorized)) {
-                    if (!items.length) continue;
-                    html += `
-                        <div style="margin-bottom: 20px;">
-                            <h4 style="color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">${cat}</h4>
-                            ${items.map((item, i) => {
-                                const pct = (item.value / maxValInterests2) * 100;
-                                return `
-                                    <div class="interest-bar">
-                                        <div class="interest-header">
-                                            <span class="interest-name">${item.name}</span>
-                                            <span class="interest-value gradient-text" style="color: ${item.color};">${item.value.toFixed(2)}</span>
-                                        </div>
-                                        <div class="interest-track">
-                                            <div class="interest-fill" style="width: 0%; background: ${item.color}; --target-width: ${pct}%;"></div>
-                                        </div>
-                                    </div>`;
-                            }).join('')}
-                        </div>`;
-                }
-                
-                if (uncategorized.length) {
-                    html += `
-                        <div style="margin-bottom: 20px;">
-                            <h4 style="color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">📦 Прочее</h4>
-                            ${uncategorized.map((item, i) => {
-                                const pct = (item.value / maxVal) * 100;
-                                return `
-                                    <div class="interest-bar">
-                                        <div class="interest-header">
-                                            <span class="interest-name">${item.name}</span>
-                                            <span class="interest-value gradient-text" style="color: ${item.color};">${item.value.toFixed(2)}</span>
-                                        </div>
-                                        <div class="interest-track">
-                                            <div class="interest-fill" style="width: 0%; background: ${item.color}; --target-width: ${pct}%;"></div>
-                                        </div>
-                                    </div>`;
-                            }).join('')}
-                        </div>`;
-                }
-                
-                container.innerHTML = html;
-                
-                // Анимация
-                requestAnimationFrame(() => {
-                    $$('.interest-fill', container).forEach((el, i) => {
-                        const target = el.style.getPropertyValue('--target-width');
-                        setTimeout(() => { el.style.width = target; }, i * 80 + 100);
-                    });
                 });
               }
 
