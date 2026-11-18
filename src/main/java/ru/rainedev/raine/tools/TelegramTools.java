@@ -295,6 +295,47 @@ public final class TelegramTools {
         this.relationships = relationships;
     }
 
+    public void residue(ru.rainedev.raine.core.EmotionalResidue residue) {
+        this.residue = residue;
+    }
+
+    /**
+     * Отметить, как на неё повлиял разговор. Живой человек не обнуляется
+     * эмоционально между чатами: поругался — ещё раздражён, обрадовался —
+     * весь день на подъёме. Этот инструмент даёт ей ту же непрерывность.
+     * Код ничего не придумывает за неё — она сама решает, что чувствует.
+     */
+    public Tool feel() {
+        return Tool.named("feel")
+                .describedAs("Record how something in this conversation made you feel, so the feeling "
+                        + "carries into your next chats instead of resetting. Use it after a moment "
+                        + "that actually landed — a fight, a compliment, something funny, a disappointment, "
+                        + "flirting, a boring exchange that drained you. Skip small talk and neutral "
+                        + "exchanges: real people don't journal every 'hi'. Call this only when the "
+                        + "feeling is worth keeping.")
+                .requiredString("label", "Short feeling name: раздражение, радость, обида, усталость, "
+                        + "вдохновение, нежность, скука, злость, грусть, азарт, etc.")
+                .requiredString("why", "In your own words, what caused it (one short line)")
+                .requiredString("intensity", "How strong: weak, medium, strong")
+                .build(arguments -> {
+                    if (residue == null) return "Not available.";
+                    String label = arguments.path("label").asText("").strip();
+                    String why = arguments.path("why").asText("").strip();
+                    String intensityStr = arguments.path("intensity").asText("medium").strip().toLowerCase();
+                    if (label.isEmpty() || why.isEmpty()) {
+                        return "Need both label and why.";
+                    }
+                    double intensity = switch (intensityStr) {
+                        case "weak", "слабо", "слабый" -> 0.25;
+                        case "strong", "сильно", "сильный", "очень" -> 0.9;
+                        default -> 0.55;
+                    };
+                    residue.feel(label, why, intensity);
+                    return "Noted. This feeling will stay with you for a while and color your next "
+                            + "conversations - you don't reset between chats, like a real person.";
+                });
+    }
+
     /** Скорость печати зависит от состояния: сонная печатает медленнее. */
     public void rhythmSpeed(java.util.function.DoubleSupplier factor) {
         this.rhythm.speedFactor(factor);

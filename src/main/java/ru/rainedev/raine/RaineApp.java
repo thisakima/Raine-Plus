@@ -306,6 +306,9 @@ public final class RaineApp implements AutoCloseable {
         always.add(tools.memeList());
         always.add(tools.storyList());
         always.add(tools.replyToStory());
+        // эмоциональная память: сама отмечает, как на неё повлиял разговор.
+        // Чувство живёт и затухает со временем, переносится между чатами.
+        always.add(tools.feel());
 
         WorkingMemory workingMemory = new WorkingMemory(config.workingMemoryFile(), llm, config.character().name());
         around = new ru.rainedev.raine.core.Surroundings(
@@ -319,8 +322,27 @@ public final class RaineApp implements AutoCloseable {
                 java.nio.file.Path.of("data/deferred.txt"));
         tools.deferredReplies(deferredReplies);
         mood = new ru.rainedev.raine.core.Mood(random);
+        // эмоциональный след: чувства от одного разговора переносятся в другие,
+        // как у живого человека. Без этого она обнуляется между чатами.
+        var residue = new ru.rainedev.raine.core.EmotionalResidue(
+                java.nio.file.Path.of("data/emotional_residue.txt"));
+        // сильные свежие чувства реально сдвигают энергию: позитивные бодрят,
+        // тяжёлые выматывают. Период полураспада ~40 минут — как у человека.
+        residue.onNewFeeling(f -> {
+            double delta = switch (f.label().toLowerCase()) {
+                case "радость", "азарт", "вдохновение", "нежность", "восторг", "предвкушение" ->
+                        0.08 * f.intensity();
+                case "грусть", "усталость", "скука", "разочарование", "апатия" ->
+                        -0.08 * f.intensity();
+                case "раздражение", "злость", "обида", "бесит" ->
+                        -0.05 * f.intensity();
+                default -> 0;
+            };
+            if (delta != 0) mood.event(f.label(), delta);
+        });
         tools.rhythmSpeed(mood::typingSpeedFactor);
         tools.relationships(relationships);
+        tools.residue(residue);
         // коробка мемов: описание берём тем же зрением, что и для картинок
         tools.memeBox(new ru.rainedev.raine.tools.MemeLibrary(
                 java.nio.file.Path.of("data/memes"), telegram,
@@ -348,7 +370,7 @@ public final class RaineApp implements AutoCloseable {
                 () -> {
                     String sample = phraseCollector.sample();
                     String suffix = around.asPromptSuffix() + mood.asPromptSuffix()
-                            + workingMemory.asPromptSuffix();
+                            + workingMemory.asPromptSuffix() + residue.asPromptSuffix();
                     if (!sample.isEmpty()) {
                         suffix += "<overheard_recently>\n"
                                 + "These are phrases real people wrote recently - in your chats and in the "
