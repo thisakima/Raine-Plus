@@ -114,6 +114,13 @@ public final class RaineApp implements AutoCloseable {
      */
     private static final double SOMETIMES_IGNORE_CHANCE = 0.08;
 
+    /**
+     * В группах молчание — норма, а не исключение: живой человек читает
+     * болтовню и влезает, только когда есть что сказать. На каждую реплику
+     * отвечать — фоновый шум. Владелец и прямые ответы ей — исключения.
+     */
+    private static final double GROUP_AMBIENT_IGNORE_CHANCE = 0.32;
+
     /** Окно, в котором чат считается живым: последнее сообщение было только что. */
     private static final long ACTIVITY_WINDOW_SECONDS = 180;
     private Spontaneity spontaneity;
@@ -531,6 +538,19 @@ public final class RaineApp implements AutoCloseable {
         spontaneity.journal(journal);
         spontaneity.pendingReplies(pendingReplies);
         spontaneity.deferredReplies(deferredReplies);
+        // свои новости: порыв может быть не «напиши кому-нибудь», а «расскажи,
+        // что у тебя сейчас» — что делает, где она, что чувствует
+        spontaneity.moment(() -> {
+            if (around == null) return "";
+            var loc = around.currentLocationActivity();
+            StringBuilder out = new StringBuilder("Where you are: ")
+                    .append(loc.location()).append(" - ").append(loc.activity()).append('.');
+            String feeling = residue == null ? "" : residue.currentLabel();
+            if (feeling != null && !feeling.isBlank()) {
+                out.append(" Right now you feel: ").append(feeling).append('.');
+            }
+            return out.toString();
+        });
         spontaneity.asleepWhen(rest::isResting);
         // привычка листать TikTok в свободное время: отдельный набор инструментов,
         // старт только когда аккаунт не на охлаждении, а по окончании сессии —
@@ -789,9 +809,16 @@ public final class RaineApp implements AutoCloseable {
 
         // иногда она просто не отвечает: сообщение не зацепило, она занята,
         // не в настроении. Живой человек не отвечает на всё подряд.
+        // В группе не отвечает заметно чаще — там болтовни много, а отвечать
+        // на каждую реплику значит быть фоновым шумом.
         // Исключения: владелец, ответы ей самой, упоминания — на это всегда
+        boolean groupChat = false;
+        try {
+            groupChat = ChatKind.of(telegram.chatCached(message.chatId)) == ChatKind.GROUP;
+        } catch (RuntimeException ignored) { }
+        double ignoreChance = groupChat ? GROUP_AMBIENT_IGNORE_CHANCE : SOMETIMES_IGNORE_CHANCE;
         if (!addressedToHer && senderId != config.ownerId()
-                && random.nextDouble() < SOMETIMES_IGNORE_CHANCE) {
+                && random.nextDouble() < ignoreChance) {
             log.debug("Пропускаю сообщение из чата {} — не в этот раз", message.chatId);
             return;
         }
@@ -872,6 +899,9 @@ public final class RaineApp implements AutoCloseable {
                     : Math.min(30, maxSeconds);
             bound = minDelay + random.nextInt(Math.max(1, maxSeconds - minDelay));
         }
+        // что она делает прямо сейчас, тоже задаёт темп: на паре не ответишь
+        // за три секунды, в дороге — быстрее, но не мгновенно
+        bound = busyAware(bound, isNight);
         if (bound <= 0) {
             return;
         }
@@ -880,6 +910,23 @@ public final class RaineApp implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Подправляет задержку под то, чем она занята. На паре и в транспорте
+     * телефон не в руках постоянно — даже когда зовут, ответ приходит позже.
+     * Ночь обрабатывается отдельно: там она спит, а не просто занята.
+     */
+    private int busyAware(int seconds, boolean isNight) {
+        if (isNight || around == null) return seconds;
+        var activity = around.currentLocationActivity();
+        if (activity.isCollege()) {
+            return Math.min(600, Math.round(seconds * 8f) + 45);
+        }
+        if (activity.isTransit()) {
+            return Math.min(300, Math.round(seconds * 3f) + 10);
+        }
+        return seconds;
     }
 
     /** В чате было сообщение в последние минуты — значит разговор активный. */
@@ -1051,6 +1098,9 @@ public final class RaineApp implements AutoCloseable {
         // оставаться доступными, когда разговор идёт уже в другом
         Toolbox available = new Toolbox();
         available.add(tools.open(chat.id));
+        // прочитала и не ответила сразу — нормальное человеческое действие,
+        // даём ей его как отдельный глагол, а не только молчание
+        available.add(tools.leaveOnRead(chat.id, chat.title));
 
         // сообщение владельца и закреплённые чаты идут вне очереди: остальное
         // подождёт, а это — то, ради чего она вообще здесь

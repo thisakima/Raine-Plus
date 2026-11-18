@@ -35,7 +35,15 @@ public final class Relationships {
     private static final int MAX_NOTES = 12;
 
     private final Path file;
+    private final java.time.Clock clock;
     private final Map<Long, Person> people = new ConcurrentHashMap<>();
+
+    /**
+     * Сколько часов после остывания обида ещё «на языке»: она может сама
+     * вернуться к тому, что её задело. Дольше — уже прошло, человек
+     * отпускает такое за пару дней.
+     */
+    private static final long RESURFACE_WINDOW_MS = 72L * 3600 * 1000;
 
     public static final class Person {
         long userId;
@@ -44,6 +52,10 @@ public final class Relationships {
         int intimacy;
         /** До какого времени она холодна (эпоха мс). 0 = не в обиде. */
         long coldUntil;
+        /** Из-за чего обиделась, её словами. Живёт дольше самой обиды. */
+        String coldReason = "";
+        /** Когда обиделась (эпоха мс). 0 = не в обиде. */
+        long coldAt;
         /** Заметки, которые ОНА сама решила запомнить. */
         final List<String> notes = new ArrayList<>();
         long lastInteraction;
@@ -68,7 +80,12 @@ public final class Relationships {
     }
 
     public Relationships(Path file) {
+        this(file, java.time.Clock.systemUTC());
+    }
+
+    Relationships(Path file, java.time.Clock clock) {
         this.file = file;
+        this.clock = clock;
         load();
     }
 
@@ -85,7 +102,7 @@ public final class Relationships {
         if (name != null && !name.isBlank()) {
             p.name = name;
         }
-        p.lastInteraction = System.currentTimeMillis();
+        p.lastInteraction = clock.millis();
         p.intimacy = Math.min(100, p.intimacy + 1);
         // охлаждение само проходит со временем
         persist();
@@ -117,11 +134,20 @@ public final class Relationships {
         if ("cold".equalsIgnoreCase(feeling)) {
             // обиделась: холодна несколько часов. Сколько именно — решает
             // не код, а она сама позже, когда заметка всплывёт в контексте
-            p.coldUntil = System.currentTimeMillis() + 4L * 3600 * 1000;
+            p.coldUntil = clock.millis() + 4L * 3600 * 1000;
+            p.coldAt = clock.millis();
+            // что именно задело — её словами. Это переживёт саму холодность:
+            // человек остывает, но «ты вчера так и не извинился» ещё помнит
+            if (!text.isBlank()) {
+                p.coldReason = text.strip();
+            }
             p.intimacy = Math.max(0, p.intimacy - 15);
         } else if ("warm".equalsIgnoreCase(feeling)) {
             p.intimacy = Math.min(100, p.intimacy + 8);
             p.coldUntil = 0;
+            // помирились — старое больше не всплывает
+            p.coldReason = "";
+            p.coldAt = 0;
         }
         if (gender != null && !gender.isBlank()) {
             String normalized = normalizeGender(gender);
@@ -129,7 +155,7 @@ public final class Relationships {
                 p.gender = normalized;
             }
         }
-        p.lastInteraction = System.currentTimeMillis();
+        p.lastInteraction = clock.millis();
         persist();
         log.info("Заметка о {} ({}): {} ({})", p.name,
                 p.gender.isEmpty() ? "?" : p.gender, text, feeling);
@@ -182,11 +208,29 @@ public final class Relationships {
             out.append("Name: ").append(p.name).append('\n');
         }
         out.append("Closeness: ").append(describeIntimacy(p.intimacy)).append('\n');
-        if (p.coldUntil > System.currentTimeMillis()) {
-            long hoursLeft = (p.coldUntil - System.currentTimeMillis()) / 3600_000;
+        if (p.coldUntil > clock.millis()) {
+            long hoursLeft = (p.coldUntil - clock.millis()) / 3600_000;
             out.append("You are currently upset with them (about ")
                     .append(Math.max(1, hoursLeft)).append("h more of cooling off). ")
                     .append("You decide how cold to be - you can thaw earlier if they're nice.\n");
+            if (!p.coldReason.isEmpty()) {
+                out.append("What got to you: ").append(p.coldReason).append('\n');
+            }
+        } else if (!p.coldReason.isEmpty()) {
+            // остыла, но не забыла: живой человек не делает вид, что ничего
+            // не было. Вспоминает об этом пару дней, потом отпускает
+            long since = clock.millis() - p.coldAt;
+            if (since < RESURFACE_WINDOW_MS) {
+                out.append("You've cooled off, but this still isn't fully settled: ")
+                        .append(p.coldReason).append(". You can bring it up if it's still ")
+                        .append("bothering you (a jab, a direct question), or genuinely let it go ")
+                        .append("- your call. A real person doesn't pretend nothing happened; ")
+                        .append("if you two make up, #note_about_person with feeling=warm closes it.\n");
+            } else {
+                // прошло больше пары дней — отпускаем и перестаём показывать
+                p.coldReason = "";
+                p.coldAt = 0;
+            }
         }
         if (!p.notes.isEmpty()) {
             out.append("Things you noted about them (your own words, use them naturally):\n");
@@ -222,14 +266,14 @@ public final class Relationships {
             if (id == skipId || shown >= 8) continue;
             Person p = people.get(id);
             if (p == null) continue;
-            if (p.notes.isEmpty() && p.intimacy < 10 && p.coldUntil <= System.currentTimeMillis()) {
+            if (p.notes.isEmpty() && p.intimacy < 10 && p.coldUntil <= clock.millis()) {
                 continue;
             }
             if (out.length() > 0) out.append('\n');
             out.append("- ").append(p.name.isEmpty() ? String.valueOf(id) : p.name)
                     .append(" (id ").append(id).append("): ")
                     .append(describeIntimacy(p.intimacy).split(" - ")[0]);
-            if (p.coldUntil > System.currentTimeMillis()) out.append(", currently cold toward them");
+            if (p.coldUntil > clock.millis()) out.append(", currently cold toward them");
             if (!p.notes.isEmpty()) {
                 out.append(", you noted: ");
                 for (int i = 0; i < Math.min(2, p.notes.size()); i++) {
@@ -266,6 +310,8 @@ public final class Relationships {
                     p.name = v.path("name").asText("");
                     p.intimacy = v.path("intimacy").asInt(0);
                     p.coldUntil = v.path("coldUntil").asLong(0);
+                    p.coldReason = v.path("coldReason").asText("");
+                    p.coldAt = v.path("coldAt").asLong(0);
                     p.lastInteraction = v.path("lastInteraction").asLong(0);
                     p.gender = v.path("gender").asText("");
                     for (JsonNode n : v.path("notes")) {
@@ -291,6 +337,8 @@ public final class Relationships {
                 v.put("name", p.name);
                 v.put("intimacy", p.intimacy);
                 v.put("coldUntil", p.coldUntil);
+                v.put("coldReason", p.coldReason);
+                v.put("coldAt", p.coldAt);
                 v.put("lastInteraction", p.lastInteraction);
                 v.put("gender", p.gender);
                 var arr = v.putArray("notes");

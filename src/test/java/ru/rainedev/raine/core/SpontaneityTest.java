@@ -168,4 +168,34 @@ class SpontaneityTest {
         assertTrue(Spontaneity.BROWSE_PROMPT.contains("up to you"),
                 "в порыве должно быть сказано, что решает она");
     }
+
+    @Test
+    void ownNewsComesFromTheMomentShesIn(@TempDir Path dir) {
+        NotificationLoop loop = loop();
+        try (Spontaneity spontaneity = new Spontaneity(loop, new Diary(dir), new Toolbox(), new Random(1))) {
+            spontaneity.moment(() -> "Where you are: колледж - на паре. Right now you feel: скука.");
+            String prompt = spontaneity.buildPrompt();
+            assertTrue(prompt.contains("<right_now>"), "свой момент должен попадать в порыв: " + prompt);
+            assertTrue(prompt.contains("колледж"), prompt);
+            assertTrue(prompt.contains("скука"), prompt);
+            assertTrue(prompt.contains("share your own news"),
+                    "ей разрешено писать первой просто потому, что есть что рассказать");
+        }
+    }
+
+    @Test
+    void deferredComebackUsesItsOwnPrompt(@TempDir Path dir) {
+        NotificationLoop loop = loop();
+        java.nio.file.Path file = dir.resolve("deferred");
+        var replies = new ru.rainedev.raine.memory.DeferredReplies(file);
+        replies.defer(1L, "friend", "прочитала, но отвечу позже", 0L);
+        try (Spontaneity spontaneity = new Spontaneity(loop, new Diary(dir), new Toolbox(), new Random(1))) {
+            spontaneity.deferredReplies(replies);
+            String prompt = spontaneity.buildPrompt();
+            assertTrue(prompt.contains("<comebacks_due>"), "отложенный возврат — отдельный повод: " + prompt);
+            assertTrue(prompt.contains("friend"), prompt);
+            assertFalse(prompt.contains("<deferred_replies_due>"),
+                    "это не обещание из текста, а явный возврат");
+        }
+    }
 }

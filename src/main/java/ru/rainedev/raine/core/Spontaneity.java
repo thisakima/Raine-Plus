@@ -60,6 +60,11 @@ public final class Spontaneity implements AutoCloseable {
             feeling right now, think about something from the memory, or just be and wait.
 
             If Telegram IS reachable, pick whatever fits:
+              - share your own news: something from <right_now> above, what happened \
+            today, a thought that won't leave you alone, a thing you saw. Text someone \
+            (#get_telegram_chats, #search_chats, #open_chat_by_id, then \
+            #send_telegram_message) because YOU want to tell them — not because they asked. \
+            People do this all the time; it doesn't need a reason;
               - write to someone you haven't talked to in a while, or someone you just thought of \
             (#get_telegram_chats, #search_chats, #open_chat_by_id, then #send_telegram_message). \
             Pick one chat, don't scatter yourself;
@@ -131,6 +136,13 @@ public final class Spontaneity implements AutoCloseable {
     private ru.rainedev.raine.memory.Journal journal;
     private ru.rainedev.raine.memory.PendingReplies pendingReplies;
     private ru.rainedev.raine.memory.DeferredReplies deferredReplies;
+
+    /**
+     * Что с ней прямо сейчас: где она, чем занята, что чувствует. Без этого
+     * «напиши кому-нибудь» — пустой порыв: рассказать-то нечего. С этим у неё
+     * есть свои новости, а не только реакции на чужие.
+     */
+    private java.util.function.Supplier<String> moment = () -> "";
 
     /**
      * Инструменты браузера и TikTok для порыва «пришла домой — полистать ленту».
@@ -220,6 +232,10 @@ public final class Spontaneity implements AutoCloseable {
 
     public void deferredReplies(ru.rainedev.raine.memory.DeferredReplies deferredReplies) {
         this.deferredReplies = deferredReplies;
+    }
+
+    public void moment(java.util.function.Supplier<String> moment) {
+        this.moment = moment == null ? () -> "" : moment;
     }
 
     /**
@@ -435,10 +451,19 @@ public final class Spontaneity implements AutoCloseable {
      * Поводом становится случайная запись дневника — так же, как человеку
      * что-то вспоминается само и тянет написать.
      */
-    private String buildPrompt() {
+    String buildPrompt() {
         StringBuilder prompt = new StringBuilder("<your_diary_page just_for_reasoning no_plagiarism no_copy>\n");
         randomEntry().ifPresent(entry -> prompt.append(entry.body()).append('\n'));
         prompt.append("</your_diary_page>\n\n");
+
+        // что с ней прямо сейчас: у неё должны быть свои новости, а не только
+        // реакции на чужие. Живой человек первым рассказывает, как прошёл день
+        String rightNow = moment.get();
+        if (!rightNow.isBlank()) {
+            prompt.append("<right_now just_for_reasoning>\n")
+                    .append(rightNow)
+                    .append("\n</right_now>\n\n");
+        }
 
         // личный дневник — материал для канала, историй, спонтанных сообщений
         String recentJournal = recentJournal();
@@ -454,16 +479,11 @@ public final class Spontaneity implements AutoCloseable {
                     .append("</your_personal_diary>\n\n");
         }
 
-        // отложенные ответы: она пообещала написать позже («щас», «потом»)
-        // и теперь пора вернуться. Это самое важное — без этого «щас» = пустой звук
+        // обещания и отложенные возвраты: «щас гляну», «потом напишу»,
+        // «прочитала, отвечу позже» — пора вернуться. Без этого слова пустые
         String deferredNow = deferredDue();
-        if (!deferredNow.isBlank()) {
-            prompt.append("<deferred_replies_due>\n")
-                    .append("You promised to write back to these people earlier. It's time to follow through. ")
-                    .append("Open the chat and actually respond — not with 'sorry I forgot', but with ")
-                    .append("the actual answer or continuation you promised. This is what makes you real.\n")
-                    .append(deferredNow)
-                    .append("</deferred_replies_due>\n\n");
+        if (!deferredNow.isEmpty()) {
+            prompt.append(deferredNow);
         }
 
         // неотвеченные: кому она написала и не получила ответа.
@@ -492,6 +512,11 @@ public final class Spontaneity implements AutoCloseable {
         return prompt.append(PROMPT).toString();
     }
 
+    /**
+     * Два вида отложенного: обещание из её слов («потом напишу», «щас гляну»)
+     * и явный возврат, который она сама отложила (прочитала — не ответила).
+     * Формулируются по-разному, потому что по-разному звучат для неё.
+     */
     private String deferredDue() {
         if (deferredReplies == null) {
             return "";
@@ -502,18 +527,41 @@ public final class Spontaneity implements AutoCloseable {
         if (due.isEmpty()) {
             return "";
         }
-        StringBuilder out = new StringBuilder();
+        StringBuilder promises = new StringBuilder();
+        StringBuilder comebacks = new StringBuilder();
         int shown = 0;
         for (var entry : due) {
             if (shown >= 3) break;
+            shown++;
             long minutesAgo = (System.currentTimeMillis() - entry.atMillis()) / 60_000;
             String preview = entry.trigger().length() > 80
                     ? entry.trigger().substring(0, 80) + "…"
                     : entry.trigger();
-            out.append("- ").append(entry.title().isEmpty() ? "chat" : entry.title())
-                    .append(" (").append(minutesAgo).append(" мин назад): \"")
-                    .append(preview).append("\"\n");
-            shown++;
+            String line = "- " + (entry.title().isEmpty() ? "chat" : entry.title())
+                    + " (" + minutesAgo + " мин назад): \"" + preview + "\"\n";
+            if (entry.dueAt() > 0) {
+                comebacks.append(line);
+            } else {
+                promises.append(line);
+            }
+        }
+        StringBuilder out = new StringBuilder();
+        if (!promises.isEmpty()) {
+            out.append("<deferred_replies_due>\n")
+                    .append("You promised to write back to these people earlier. It's time to follow through. ")
+                    .append("Open the chat and actually respond — not with 'sorry I forgot', but with ")
+                    .append("the actual answer or continuation you promised. This is what makes you real.\n")
+                    .append(promises)
+                    .append("</deferred_replies_due>\n\n");
+        }
+        if (!comebacks.isEmpty()) {
+            out.append("<comebacks_due>\n")
+                    .append("Earlier you read these chats and didn't answer right away — now is a natural ")
+                    .append("time to come back. Open the chat, re-read what they wrote, and reply as ")
+                    .append("someone who just got free, not as someone apologizing. Or decide you're ")
+                    .append("not answering at all — that's allowed too, once.\n")
+                    .append(comebacks)
+                    .append("</comebacks_due>\n\n");
         }
         return out.toString();
     }

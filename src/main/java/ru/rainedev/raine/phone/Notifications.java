@@ -23,7 +23,10 @@ public final class Notifications {
 
     public static String groupMessage(TdApi.Chat chat, String senderName, long senderId) {
         return wrap(chat.id, "%s (user_id = %d) sent a message in group chat \"%s\" (chat_id = %d)"
-                .formatted(senderName, senderId, chat.title, chat.id));
+                .formatted(senderName, senderId, chat.title, chat.id)
+                + "\nIn a group you don't answer every message. Read the room, then speak only if "
+                + "you actually have something to add — a joke, an opinion, a fact, a question. "
+                + "Staying quiet is normal here.");
     }
 
     public static String channelPost(TdApi.Chat chat) {
@@ -50,6 +53,9 @@ public final class Notifications {
 
     private static String wrap(long chatId, String body) {
         return openingTag(chatId) + body + "\n</notification>\n"
-                + "You don't have any chat open. Use #open tool to open the chat";
+                + "You don't have any chat open. Use #open tool to open the chat. "
+                + "You don't have to answer right now: if you're busy or it doesn't need a reply "
+                + "this second, #leave_on_read lets you read it and come back later. "
+                + "Silence is allowed — pretending you replied is not.";
     }
 }

@@ -96,4 +96,47 @@ class ReplyRemindersTest {
         assertEquals(2, pending.stale(0).size());
         assertTrue(pending.stale(0).isEmpty());
     }
+
+    @Test void lookItUpPromisesAreTrackedToo() {
+        DeferredReplies replies = new DeferredReplies(dir.resolve("deferred"), clock);
+        // «щас гляну» — обещание, а не болтовня: она должна вернуться с ответом
+        for (String text : new String[] {"щас гляну", "потом посмотрю", "сейчас проверю",
+                "через час скину, погуглю"}) {
+            replies.checkLastSent(1, "friend", text);
+            assertEquals(1, replies.due(0).size(), text);
+            replies.done(1);
+        }
+        // «не посмотрю» — отрицание, обещания нет
+        replies.checkLastSent(1, "friend", "не посмотрю это сегодня");
+        assertTrue(replies.due(0).isEmpty());
+    }
+
+    @Test void explicitComebackIsDueOnlyAtItsTime() {
+        DeferredReplies replies = new DeferredReplies(dir.resolve("deferred"), clock);
+        // прочитала и не ответила: вернётся через час, не раньше
+        replies.defer(1, "friend", "на паре, потом отвечу", 60 * 60_000L);
+        assertTrue(replies.due(0).isEmpty(), "до срока возврата не напоминаем");
+        // из-за фиксированных часов в тесте сдвигаем время через новый файл:
+        // проще проверить, что после срока запись созревает
+        replies = new DeferredReplies(dir.resolve("deferred"),
+                Clock.offset(clock, java.time.Duration.ofHours(2)));
+        var due = replies.due(0);
+        assertEquals(1, due.size(), "после срока пора возвращаться");
+        assertEquals("на паре, потом отвечу", due.getFirst().trigger());
+        assertTrue(replies.due(0).isEmpty(), "напоминание одноразовое");
+    }
+
+    @Test void explicitComebackSurvivesRestartAndIsCancelledByReply() {
+        Path file = dir.resolve("deferred");
+        DeferredReplies replies = new DeferredReplies(file, clock);
+        replies.defer(1, "friend", "прочитала, отвечу позже", 30 * 60_000L);
+
+        DeferredReplies reloaded = new DeferredReplies(file,
+                Clock.offset(clock, java.time.Duration.ofMinutes(31)));
+        assertEquals(1, reloaded.due(0).size(), "возврат переживает перезапуск");
+
+        // собеседник написал — отложенное больше не нужно
+        reloaded.cancelIfAnswered(1);
+        assertTrue(reloaded.due(0).isEmpty());
+    }
 }

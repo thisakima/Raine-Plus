@@ -26,14 +26,19 @@ public final class DeferredReplies {
 
     private static final String FORMAT = "# confirmed-v2";
     private static final java.util.regex.Pattern PROMISE = java.util.regex.Pattern.compile(
-            "(?iuU)\\b(?:напишу|отвечу|расскажу|скину|пришлю|вернусь)\\b");
+            "(?iuU)\\b(?:напишу|отвечу|расскажу|скину|пришлю|вернусь|гляну|посмотрю|проверю|"
+                    + "уточню|найду|погуглю|поищу|разберусь)\\b");
     private static final java.util.regex.Pattern LATER = java.util.regex.Pattern.compile(
             "(?iuU)\\b(?:потом|позже|скоро|щас|сейчас|вечером|завтра|через|после)\\b");
+    private static final java.util.regex.Pattern NEGATED = java.util.regex.Pattern.compile(
+            "(?isU).*\\bне\\s+(?:напишу|отвечу|расскажу|скину|пришлю|вернусь|гляну|посмотрю|"
+                    + "проверю|уточню|найду|погуглю|поищу|разберусь)\\b.*");
     private final Path file;
     private final java.time.Clock clock;
     private final Map<Long, Entry> deferred = new ConcurrentHashMap<>();
 
-    public record Entry(long chatId, String title, long atMillis, String trigger, boolean reminded) {}
+    public record Entry(long chatId, String title, long atMillis, String trigger, boolean reminded,
+                        long dueAt) {}
 
     public DeferredReplies(Path file) {
         this(file, java.time.Clock.systemUTC());
@@ -57,7 +62,7 @@ public final class DeferredReplies {
         String low = text.toLowerCase(java.util.Locale.ROOT).strip();
         if (low.startsWith("*")) return;
         boolean isDeferred = PROMISE.matcher(low).find() && LATER.matcher(low).find()
-                && !low.matches("(?sU).*\\bне\\s+(?:напишу|отвечу|расскажу|скину|пришлю|вернусь)\\b.*");
+                && !NEGATED.matcher(low).matches();
         if (!isDeferred) {
             done(chatId);
             return;
@@ -69,7 +74,7 @@ public final class DeferredReplies {
         deferred.put(chatId, new Entry(chatId,
                 title == null ? "" : title,
                 clock.millis(),
-                text.strip(), false));
+                text.strip(), false, 0));
         persist();
         log.info("Отложенный ответ запомнен для чата {}: {}", title, low);
     }
@@ -85,23 +90,49 @@ public final class DeferredReplies {
     }
 
     /**
+     * Явное отложенное возвращение: она прочитала сообщение, но не ответила
+     * сейчас («оставила на прочитанном»), или сама отложила разговор.
+     * В отличие от обещания из текста, здесь момент возврата задан точно:
+     * запись станет «к делу» только когда время придёт.
+     *
+     * @param reason      короткая заметка для себя, зачем возвращаться
+     * @param delayMillis через сколько вернуться (0 — можно и сразу)
+     */
+    public synchronized void defer(long chatId, String title, String reason, long delayMillis) {
+        long now = clock.millis();
+        deferred.put(chatId, new Entry(chatId,
+                title == null ? "" : title,
+                now,
+                reason == null ? "" : reason,
+                false,
+                now + Math.max(0L, delayMillis)));
+        persist();
+        log.info("Отложенное возвращение в чат {} через {} мин: {}", title, delayMillis / 60_000, reason);
+    }
+
+    /**
      * Записи, которым пора возвращаться: прошло достаточно времени,
      * чтобы «щас» стало реальным действием, а не мгновенной реакцией.
+     * Явные возвраты ({@link #defer}) созревают строго к своему моменту,
+     * обещания из текста — по минимальному возрасту записи.
      *
      * @param minAgeMillis минимальный возраст записи (обычно 20-90 мин)
      */
     public synchronized List<Entry> due(long minAgeMillis) {
-        long cutoff = clock.millis() - minAgeMillis;
+        long now = clock.millis();
+        long cutoff = now - minAgeMillis;
         List<Entry> result = new ArrayList<>();
         for (Entry e : deferred.values()) {
-            if (!e.reminded() && e.atMillis() <= cutoff) {
+            if (e.reminded()) continue;
+            boolean ripe = e.dueAt() > 0 ? now >= e.dueAt() : e.atMillis() <= cutoff;
+            if (ripe) {
                 result.add(e);
             }
         }
         result.sort((a, b) -> Long.compare(a.atMillis(), b.atMillis()));
         List<Entry> shown = result.stream().limit(3).toList();
         for (Entry e : shown) {
-            deferred.put(e.chatId(), new Entry(e.chatId(), e.title(), e.atMillis(), e.trigger(), true));
+            deferred.put(e.chatId(), new Entry(e.chatId(), e.title(), e.atMillis(), e.trigger(), true, e.dueAt()));
         }
         if (!shown.isEmpty()) persist();
         return shown;
@@ -123,12 +154,14 @@ public final class DeferredReplies {
             // Unverified promises from older versions must not trigger new messages.
             if (lines.isEmpty() || !FORMAT.equals(lines.getFirst())) return;
             for (String line : lines.subList(1, lines.size())) {
-                String[] parts = line.split("\\|", 5);
-                if (parts.length < 5) continue;
-                try {
-                    long chatId = Long.parseLong(parts[0]);
-                    long at = Long.parseLong(parts[2]);
-                    deferred.put(chatId, new Entry(chatId, parts[1], at, parts[4], Boolean.parseBoolean(parts[3])));
+            String[] parts = line.split("\\|", 6);
+            if (parts.length < 5) continue;
+            try {
+                long chatId = Long.parseLong(parts[0]);
+                long at = Long.parseLong(parts[2]);
+                long dueAt = parts.length >= 6 ? Long.parseLong(parts[5]) : 0;
+                deferred.put(chatId, new Entry(chatId, parts[1], at, parts[4],
+                        Boolean.parseBoolean(parts[3]), dueAt));
                 } catch (NumberFormatException ignored) { }
             }
             if (!deferred.isEmpty()) {
@@ -149,7 +182,7 @@ public final class DeferredReplies {
                 out.append(e.chatId()).append('|')
                         .append(e.title().replace("|", "_").replace("\n", " ")).append('|')
                         .append(e.atMillis()).append('|').append(e.reminded()).append('|')
-                        .append(e.trigger().replace("\n", " ")).append('\n');
+                        .append(e.trigger().replace("\n", " ")).append('|').append(e.dueAt()).append('\n');
             }
             ru.rainedev.raine.storage.AtomicFiles.writeString(file, out.toString());
         } catch (IOException e) {

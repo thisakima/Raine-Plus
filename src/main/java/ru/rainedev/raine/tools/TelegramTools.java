@@ -1004,6 +1004,69 @@ public final class TelegramTools {
      * сообщением, а цитата нужна, только когда разговор ушёл вперёд и надо
      * показать, к чему относится реплика.
      */
+    /**
+     * Прочитала — и не ответила сразу. Живой человек так делает постоянно:
+     * увидел сообщение, но занят, нет сил, не в настроении или просто нечего
+     * сказать. Это не игнор: она действительно прочитала (сообщение помечено
+     * прочитанным) и вернётся к нему позже. Код ничего не придумывает за неё —
+     * он только запоминает, что она отложила разговор, и напоминает вернуться.
+     */
+    public Tool leaveOnRead(long chatId, String title) {
+        return Tool.named("leave_on_read")
+                .describedAs(title == null || title.isEmpty()
+                        ? "Read the message without replying right now, and come back to it later. "
+                        + "Use it when you're busy, drained, or simply have nothing to add yet — "
+                        + "a real person doesn't answer everything instantly. Don't use it to dodge "
+                        + "someone who needs you; use it like leaving a chat on read and answering when "
+                        + "you actually have the head for it."
+                        : "Read \"" + title + "\" without replying right now, and come back to it later. "
+                        + "Use it when you're busy, drained, or simply have nothing to add yet — "
+                        + "a real person doesn't answer everything instantly.")
+                .optionalString("why", "Short note to yourself: what you're doing instead or why you're "
+                        + "not answering (\"на паре\", \"нет сил\", \"пусть остынет\", \"надо подумать\")")
+                .optionalString("come_back_in_minutes", "Optional. When you'd like to revisit, in minutes "
+                        + "(5-600). Default: random, within the next hour or two")
+                .build(arguments -> {
+                    telegram.delivery().requireReady();
+                    if (actions instanceof TelegramActions.ReadOnly) {
+                        return "Read-only mode: nothing was read.";
+                    }
+                    List<TdApi.Message> history = recentEnough(telegram.history(chatId, HISTORY_DEPTH));
+                    if (!history.isEmpty()) {
+                        actions.markRead(chatId, history.stream().mapToLong(message -> message.id).toArray());
+                    }
+                    opened.add(chatId);
+                    if (loop != null) {
+                        loop.setCurrentChatId(chatId);
+                    }
+                    String why = arguments.path("why").asText("").strip();
+                    int minutes = minutesOf(arguments.path("come_back_in_minutes").asText("").strip());
+                    if (minutes <= 0) {
+                        // обычно человек возвращается в течение часа-двух
+                        minutes = 40 + random.nextInt(80);
+                    }
+                    if (deferredReplies != null) {
+                        deferredReplies.defer(chatId, title,
+                                why.isEmpty() ? "прочитала и отложила" : why, minutes * 60_000L);
+                    }
+                    log.info("Чат {} оставлен на прочитанном, возврат через {} мин: {}", chatId, minutes, why);
+                    return "Read it and put the phone down without answering. That's fine — you'll come "
+                            + "back to it in about " + minutes + " min (sooner if you feel like it). "
+                            + "You haven't replied yet, so don't say that you did.";
+                });
+    }
+
+    /** Минуты из свободного текста: 5-600, иначе 0 (пусть выберет сама). */
+    private static int minutesOf(String raw) {
+        if (raw == null || raw.isBlank()) return 0;
+        try {
+            int value = (int) Math.round(Double.parseDouble(raw.replaceAll("[^0-9.]", "")));
+            return Math.clamp(value, 5, 600);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     public Tool send(long chatId) {
         // Keep the counter when the model reopens the same chat during this turn.
         int[] inARow = consecutive.computeIfAbsent(chatId, ignored -> new int[1]);
