@@ -114,6 +114,13 @@ public final class TelegramTools {
     /** Отношения с людьми: близость, обиды, её собственные заметки. */
     private ru.rainedev.raine.memory.Relationships relationships;
 
+    /**
+     * Эмоциональный след: как на неё повлиял разговор. Живой человек не
+     * обнуляется между чатами — поругался, и ещё раздражён, когда пишет
+     * другой. Этот инструмент даёт ей ту же непрерывность.
+     */
+    private ru.rainedev.raine.core.EmotionalResidue residue;
+
     /** Сообщает, чем закончилась фоновая съёмка. */
     @FunctionalInterface
     public interface PhotoOutcome {
