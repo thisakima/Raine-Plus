@@ -72,15 +72,6 @@ public final class TelegramTools {
             () -> "Exactly what you want to say in the voice message";
     private final AntiRepeat antiRepeat;
 
-    /**
-     * Ловит модельные шутки-тики («это название фильма какое-то»): запрет в
-     * промпте не работает, а в логах они всё равно всплывают.
-     */
-    private final LlmSlangGuard slangGuard = new LlmSlangGuard(
-            "Это прозвучало как сгенерировано, а не как живой человек. "
-                    + "Не сравнивай ситуацию с фильмом, книгой или аниме, не пиши "
-                    + "«это название … какое-то», «звучит как …», «как в кино», «это когда». "
-                    + "Скажи то же самое обычными словами — или промолчи.");
     private ru.rainedev.raine.vision.TelegramMedia media;
     private final StickerTools stickers;
     private ru.rainedev.raine.speech.VoiceGenerator voice;
@@ -1097,7 +1088,6 @@ public final class TelegramTools {
                     }
 
                     maybeSuggestSomethingLivelier();
-                    slangGuard.check(text);
                     antiRepeat.check(text);
 
                     boolean allowTypos = !"false".equalsIgnoreCase(arguments.path("allow_typos").asText("true"));
@@ -1787,7 +1777,6 @@ public final class TelegramTools {
                         return "This post has no comment section (the channel has no discussion group), so "
                                 + "there's nowhere to comment. You can still react to it with #react_with_emoji.";
                     }
-                    slangGuard.check(text);
                     antiRepeat.check(text);
                     long discussionChatId = target.get().chatId();
                     String comment = text.replace("—", "-");
