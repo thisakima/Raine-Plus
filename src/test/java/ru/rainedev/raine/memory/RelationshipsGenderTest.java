@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -17,6 +18,26 @@ import org.junit.jupiter.api.io.TempDir;
  * подставляет от себя.
  */
 class RelationshipsGenderTest {
+
+    @Test
+    void groupContextRemembersPeopleWhoSpoke(@TempDir Path dir) {
+        Relationships rel = new Relationships(dir.resolve("rel.json"));
+        rel.note(1L, "Миша", "всегда шутит про дошик", "warm", "male");
+        rel.note(2L, "Лена", "обиделась вчера из-за шутки про код", "cold", "female");
+
+        String ctx = rel.groupContextFor(List.of(1L, 2L, 3L), 3L);
+        assertTrue(ctx.contains("Миша"), ctx);
+        assertTrue(ctx.contains("дошик"), ctx);
+        assertTrue(ctx.contains("Лена"), ctx);
+        assertFalse(ctx.contains("id 3"), "последний говорящий в отдельном блоке, не дублируем: " + ctx);
+    }
+
+    @Test
+    void groupContextSkipsStrangers(@TempDir Path dir) {
+        Relationships rel = new Relationships(dir.resolve("rel.json"));
+        String ctx = rel.groupContextFor(List.of(42L, 43L), 0L);
+        assertEquals("", ctx, "о незнакомцах ничего не пишем");
+    }
 
     @Test
     void unknownByDefaultSoNothingIsGuessed(@TempDir Path dir) {

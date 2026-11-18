@@ -912,14 +912,37 @@ public final class TelegramTools {
             }
             // что она знает об этом человеке: близость, обиды, её собственные
             // заметки. Код только показывает факты — как себя вести, решает она
-            if (relationships != null && rendered.kind() == ChatKind.DM) {
-                long personId = chat.type instanceof TdApi.ChatTypePrivate priv ? priv.userId : 0;
-                if (personId != 0) {
-                    String about = relationships.contextFor(personId);
-                    if (!about.isEmpty()) {
-                        return rendered.text() + "\n" + about;
+            java.util.List<String> memoryBlocks = new java.util.ArrayList<>();
+            if (relationships != null) {
+                if (rendered.kind() == ChatKind.DM) {
+                    long personId = chat.type instanceof TdApi.ChatTypePrivate priv ? priv.userId : 0;
+                    if (personId != 0) {
+                        String about = relationships.contextFor(personId);
+                        if (!about.isEmpty()) memoryBlocks.add(about);
+                    }
+                } else if (rendered.kind() == ChatKind.GROUP) {
+                    // В группе память тоже нужна: без неё она реагирует на
+                    // последнюю реплику и не помнит ничего о тех, кто говорит.
+                    // Про последнего отправителя — обязательно (это тот, кому
+                    // она, скорее всего, отвечает), плюс короткая выжимка по
+                    // остальным знакомым в этом чате.
+                    long lastSender = senderOf(chat.lastMessage);
+                    if (lastSender != 0) {
+                        String about = relationships.contextFor(lastSender);
+                        if (!about.isEmpty()) {
+                            memoryBlocks.add("<about_the_last_speaker>\n" + about + "\n</about_the_last_speaker>");
+                        }
+                    }
+                    String groupMemory = relationships.groupContextFor(
+                            history.stream().map(TelegramTools::senderOf).filter(id -> id != 0)
+                                    .distinct().toList(), lastSender);
+                    if (!groupMemory.isEmpty()) {
+                        memoryBlocks.add("<people_you_know_here>\n" + groupMemory + "\n</people_you_know_here>");
                     }
                 }
+            }
+            if (!memoryBlocks.isEmpty()) {
+                return rendered.text() + "\n" + String.join("\n", memoryBlocks);
             }
             return rendered.text();
         });

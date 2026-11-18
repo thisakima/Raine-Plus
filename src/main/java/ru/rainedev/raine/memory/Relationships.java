@@ -206,6 +206,43 @@ public final class Relationships {
         return out.toString();
     }
 
+    /**
+     * Короткая выжимка о людях, которые уже писали в группе. Нужна, чтобы
+     * она приносила в чат то, что знает о собеседниках, а не реагировала
+     * на последнюю реплику как незнакомец. Без неё в группах она «фоновый
+     * шум»: помнит всё в базе, но не видит этого в контексте.
+     *
+     * @param speakers id всех, кто писал в последнем окне истории
+     * @param skipId   последний говорящий — о нём отдельный блок, не дублируем
+     */
+    public String groupContextFor(List<Long> speakers, long skipId) {
+        StringBuilder out = new StringBuilder();
+        int shown = 0;
+        for (long id : speakers) {
+            if (id == skipId || shown >= 8) continue;
+            Person p = people.get(id);
+            if (p == null) continue;
+            if (p.notes.isEmpty() && p.intimacy < 10 && p.coldUntil <= System.currentTimeMillis()) {
+                continue;
+            }
+            if (out.length() > 0) out.append('\n');
+            out.append("- ").append(p.name.isEmpty() ? String.valueOf(id) : p.name)
+                    .append(" (id ").append(id).append("): ")
+                    .append(describeIntimacy(p.intimacy).split(" - ")[0]);
+            if (p.coldUntil > System.currentTimeMillis()) out.append(", currently cold toward them");
+            if (!p.notes.isEmpty()) {
+                out.append(", you noted: ");
+                for (int i = 0; i < Math.min(2, p.notes.size()); i++) {
+                    if (i > 0) out.append("; ");
+                    String note = p.notes.get(i);
+                    out.append(note.length() > 100 ? note.substring(0, 100) + "..." : note);
+                }
+            }
+            shown++;
+        }
+        return out.toString();
+    }
+
     private static String describeIntimacy(int intimacy) {
         if (intimacy >= 80) return "very close - you can be blunt, swear, send voice notes, share personal things";
         if (intimacy >= 55) return "friends - relaxed, jokes allowed, some personal topics";
